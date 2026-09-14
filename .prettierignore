@@ -7,3 +7,7 @@ pnpm-lock.yaml
 # reflow either. It reformats emphasis markers and table pipes, which makes spec diffs
 # unreadable.
 *.md
+
+# Captured server output, written by `pnpm fixtures`. Prettier reformats it, which makes every
+# regeneration look like a change and would mask a real one.
+clients/ios/Tests/Fixtures/
