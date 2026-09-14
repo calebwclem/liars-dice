@@ -1,0 +1,87 @@
+# The source of truth for the Xcode project. CLAUDE.md: never hand-edit the .xcodeproj — edit
+# this file and run `xcodegen generate`. The .xcodeproj is gitignored for exactly that reason.
+#
+# Before generating, run `pnpm codegen` from the repo root: Sources/Generated/Protocol.swift is
+# produced from packages/protocol and is not committed.
+name: LiarsDice
+
+options:
+  bundleIdPrefix: com.liarsdice
+  deploymentTarget:
+    iOS: '17.0'
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    # CLAUDE.md: Swift 6 strict concurrency. Not a warning level — the build fails on a data
+    # race the compiler can prove, which is the whole reason to be on Swift 6.
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: 'YES'
+    ENABLE_USER_SCRIPT_SANDBOXING: 'YES'
+    CLANG_ENABLE_MODULES: 'YES'
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: 'NO'
+
+targets:
+  LiarsDice:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.liarsdice.app
+        # Deliberately not PRODUCT_NAME: the bundle is LiarsDice.app, which is what the test
+        # target's TEST_HOST points at. The name on the home screen is CFBundleDisplayName below.
+        # iPhone only for v1.
+        TARGETED_DEVICE_FAMILY: '1'
+        GENERATE_INFOPLIST_FILE: 'NO'
+        INFOPLIST_FILE: Info.plist
+        CODE_SIGNING_ALLOWED: 'NO'
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Liar's Dice
+        CFBundleShortVersionString: '0.1'
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # The dev server is plain ws:// on localhost, which App Transport Security blocks by
+        # default. This exception covers local addresses only. Phase 7 ships against wss:// on a
+        # real host and this comes out.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+
+  LiarsDiceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+        excludes:
+          - Fixtures/**
+      # A real server transcript, captured by `pnpm fixtures`. Bundled so the decoding tests
+      # read what the server actually sent rather than what someone assumed it sends.
+      - path: Tests/Fixtures
+        buildPhase: resources
+    dependencies:
+      - target: LiarsDice
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.liarsdice.app.tests
+        GENERATE_INFOPLIST_FILE: 'YES'
+        CODE_SIGNING_ALLOWED: 'NO'
+
+schemes:
+  LiarsDice:
+    build:
+      targets:
+        LiarsDice: all
+        LiarsDiceTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - LiarsDiceTests
