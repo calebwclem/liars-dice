@@ -1,7 +1,20 @@
 import { describe, expect, test } from 'vitest';
-import { countFace, legalBids, minimumLegalBid, reduce, totalDiceInPlay } from '../src/index.ts';
+import {
+  bidContextOf,
+  bidContextOfView,
+  checkBid,
+  checkBidIn,
+  countFace,
+  legalBids,
+  legalBidsIn,
+  minimumLegalBid,
+  minimumLegalBidIn,
+  redactFor,
+  reduce,
+  totalDiceInPlay,
+} from '../src/index.ts';
 import type { Bid, ErrorReason, Face, GameState } from '../src/types.ts';
-import { bid, ctx, expectErr, fourPlayers, makeState, unwrap } from './helpers.ts';
+import { bid, ctx, expectErr, fourPlayers, makeState, playRandomMatch, unwrap } from './helpers.ts';
 
 /** Four hands that matter to nothing here; only the bid ladder is under test. */
 const HANDS: [readonly Face[], readonly Face[], readonly Face[], readonly Face[]] = [
@@ -274,5 +287,49 @@ describe('Bid ordering helpers', () => {
         );
       }
     }
+  });
+});
+
+describe('Bid legality from a redacted view', () => {
+  test('R-04..R-09/R-13: a PlayerView answers exactly as the full state does', () => {
+    // A client holds a PlayerView and may grey out an illegal button (CLAUDE.md). That is
+    // only safe if the view-derived context gives the same answer as the server's, for
+    // every bid — including the quantity cap and the palifico face lock, which are the
+    // two places the view could plausibly fall short.
+    const { states } = playRandomMatch({ seed: 21, playerIds: ['a', 'b', 'c', 'd'] });
+    let checked = 0;
+    for (const state of states) {
+      const viewer = state.phase.kind === 'bidding' ? state.phase.turnId : 'a';
+      const fromView = bidContextOfView(redactFor(state, viewer));
+      expect(fromView).toEqual(bidContextOf(state));
+      for (let quantity = 1; quantity <= totalDiceInPlay(state) + 1; quantity += 1) {
+        for (const face of [1, 2, 3, 4, 5, 6] as Face[]) {
+          const candidate = bid(quantity, face);
+          expect(checkBidIn(fromView, candidate)).toEqual(checkBid(state, candidate));
+          checked += 1;
+        }
+      }
+      expect(legalBidsIn(fromView)).toEqual(legalBids(state));
+      expect(minimumLegalBidIn(fromView)).toEqual(minimumLegalBid(state));
+    }
+    expect(checked).toBeGreaterThan(1_000); // the sweep actually swept
+  });
+
+  test('R-13: the view carries the locked face, so a client can enforce it too', () => {
+    const state = makeState({
+      hands: { a: [1, 2], b: [3, 4] },
+      palifico: true,
+      starterId: 'a',
+      bids: [{ playerId: 'a', bid: bid(2, 3) }],
+      turnId: 'b',
+    });
+    const ctxFromView = bidContextOfView(redactFor(state, 'b'));
+    expect(ctxFromView.lockedFace).toBe(3);
+    expect(ctxFromView.palifico).toBe(true);
+    expect(checkBidIn(ctxFromView, bid(3, 4))).toEqual({
+      ok: false,
+      reason: 'PALIFICO_FACE_LOCKED',
+    });
+    expect(checkBidIn(ctxFromView, bid(3, 3))).toEqual({ ok: true, value: true });
   });
 });

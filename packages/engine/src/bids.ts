@@ -22,7 +22,7 @@
  * the key is simply [q, f] for every face — and since R-13 also locks the face, what is
  * left is a plain quantity ladder.
  */
-import type { Bid, Face, GameState, PlayerId, Result } from './types.ts';
+import type { Bid, Face, GameState, PlayerId, PlayerView, Result } from './types.ts';
 import { err, FACES, ok } from './types.ts';
 import { lockedFace, standingBid, totalDiceInPlay } from './query.ts';
 
@@ -31,6 +31,37 @@ const ONES_RANK = 7;
 
 export const isFace = (value: number): value is Face =>
   Number.isInteger(value) && value >= 1 && value <= 6;
+
+/**
+ * Everything the raise rules actually consult. Pulled out as its own type because a
+ * client holds a `PlayerView`, never a `GameState`, and CLAUDE.md lets a client grey out
+ * an illegal button — which it can only do if it can ask the question. Both shapes can
+ * produce a context, so the rule is implemented once and answers both.
+ */
+export interface BidContext {
+  /** The bid on the table, or null if the round has not been opened (R-05). */
+  readonly standing: Bid | null;
+  /** R-13: the face the opening bid of a palifico round locked; null otherwise. */
+  readonly lockedFace: Face | null;
+  /** R-07 / R-13: false means ones are wild. */
+  readonly palifico: boolean;
+  /** R-04: the ceiling on a legal quantity. */
+  readonly diceInPlay: number;
+}
+
+export const bidContextOf = (state: GameState): BidContext => ({
+  standing: standingBid(state),
+  lockedFace: lockedFace(state),
+  palifico: state.round.palifico,
+  diceInPlay: totalDiceInPlay(state),
+});
+
+export const bidContextOfView = (view: PlayerView): BidContext => ({
+  standing: view.round.bids.at(-1)?.bid ?? null,
+  lockedFace: view.round.lockedFace,
+  palifico: view.round.palifico,
+  diceInPlay: view.totalDiceInPlay,
+});
 
 /**
  * R-04: how many dice on the table show `face`. R-07: a 1 counts as any face when ones
@@ -69,19 +100,23 @@ export const isRaise = (prev: Bid, next: Bid, wildOnes: boolean): boolean =>
  * Every reason a bid can be rejected, in the order a player would care about: malformed
  * first, then out of range (R-04), then out of order (R-08/R-09/R-13).
  */
-export function checkBid(state: GameState, next: Bid): Result<true> {
+export function checkBidIn(ctx: BidContext, next: Bid): Result<true> {
   if (!Number.isInteger(next.quantity) || next.quantity < 1) return err('BID_QUANTITY_INVALID');
   if (!isFace(next.face)) return err('BID_FACE_INVALID');
-  if (next.quantity > totalDiceInPlay(state)) return err('BID_EXCEEDS_DICE_IN_PLAY');
+  if (next.quantity > ctx.diceInPlay) return err('BID_EXCEEDS_DICE_IN_PLAY');
 
-  const standing = standingBid(state);
+  const { standing } = ctx;
   if (standing === null) return ok(true); // R-05: an opening bid has nothing to clear.
 
-  const locked = lockedFace(state);
-  if (locked !== null && next.face !== locked) return err('PALIFICO_FACE_LOCKED'); // R-13
-  if (!isRaise(standing, next, !state.round.palifico)) return err('BID_TOO_LOW');
+  if (ctx.lockedFace !== null && next.face !== ctx.lockedFace) {
+    return err('PALIFICO_FACE_LOCKED'); // R-13
+  }
+  if (!isRaise(standing, next, !ctx.palifico)) return err('BID_TOO_LOW');
   return ok(true);
 }
+
+export const checkBid = (state: GameState, next: Bid): Result<true> =>
+  checkBidIn(bidContextOf(state), next);
 
 /** Convenience for clients deciding whether to enable a button. The server re-validates. */
 export const isLegalBid = (state: GameState, bid: Bid): boolean => checkBid(state, bid).ok;
@@ -90,21 +125,26 @@ export const isLegalBid = (state: GameState, bid: Bid): boolean => checkBid(stat
  * Every bid the player on turn could legally make, weakest first. Bounded by R-04's cap,
  * so this is at most `6 * totalDiceInPlay` candidates — 180 in a full six-player match.
  */
-export function legalBids(state: GameState): readonly Bid[] {
-  const wildOnes = !state.round.palifico;
+export function legalBidsIn(ctx: BidContext): readonly Bid[] {
+  const wildOnes = !ctx.palifico;
   const out: Bid[] = [];
-  for (let quantity = 1; quantity <= totalDiceInPlay(state); quantity += 1) {
+  for (let quantity = 1; quantity <= ctx.diceInPlay; quantity += 1) {
     for (const face of FACES) {
       const candidate: Bid = { quantity, face };
-      if (checkBid(state, candidate).ok) out.push(candidate);
+      if (checkBidIn(ctx, candidate).ok) out.push(candidate);
     }
   }
   return out.sort((a, b) => compareBids(a, b, wildOnes));
 }
+
+export const legalBids = (state: GameState): readonly Bid[] => legalBidsIn(bidContextOf(state));
 
 /**
  * The weakest legal bid, or null when the ladder has run out — which happens only on a
  * maximal ones bid, where R-09 would demand more dice than exist (see R-09's last
  * bullet). The player must then challenge. Phase 2's R-17 timeout auto-bid calls this.
  */
-export const minimumLegalBid = (state: GameState): Bid | null => legalBids(state)[0] ?? null;
+export const minimumLegalBidIn = (ctx: BidContext): Bid | null => legalBidsIn(ctx)[0] ?? null;
+
+export const minimumLegalBid = (state: GameState): Bid | null =>
+  minimumLegalBidIn(bidContextOf(state));

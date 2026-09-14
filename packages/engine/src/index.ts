@@ -39,13 +39,19 @@ export { reduce } from './reduce.ts';
 export { redactFor } from './redact.ts';
 
 export {
+  bidContextOf,
+  bidContextOfView,
   checkBid,
+  checkBidIn,
   compareBids,
   countFace,
   isLegalBid,
   legalBids,
+  legalBidsIn,
   minimumLegalBid,
+  minimumLegalBidIn,
 } from './bids.ts';
+export type { BidContext } from './bids.ts';
 export {
   activePlayers,
   lockedFace,
