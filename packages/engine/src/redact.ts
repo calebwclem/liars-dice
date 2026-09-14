@@ -9,8 +9,7 @@
  * pruning it means a future edit cannot accidentally leave a foreign hand behind.
  */
 import type { GameState, PlayerId, PlayerView, PublicPlayer } from './types.ts';
-import { lockedFace, totalDiceInPlay } from './query.ts';
-import { playerById } from './query.ts';
+import { lockedFace, playerById, totalDiceInPlay } from './query.ts';
 
 export function redactFor(state: GameState, playerId: PlayerId): PlayerView {
   const self = playerById(state, playerId);

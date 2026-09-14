@@ -8,6 +8,7 @@
  */
 import type {
   Action,
+  Bid,
   Ctx,
   GameEvent,
   GameState,
@@ -51,11 +52,7 @@ function requireTurn(state: GameState, playerId: PlayerId): Result<PlayerState> 
 }
 
 /** R-04 to R-09. */
-function applyBid(
-  state: GameState,
-  playerId: PlayerId,
-  bid: GameState['round']['bids'][number]['bid'],
-): Result<Transition> {
+function applyBid(state: GameState, playerId: PlayerId, bid: Bid): Result<Transition> {
   const turn = requireTurn(state, playerId);
   if (!turn.ok) return turn;
 
