@@ -7,12 +7,18 @@
  */
 import { z } from 'zod';
 import type { DeepReadonly } from './readonly.ts';
-import { BidSchema, EngineErrorReasonSchema, PlayerViewSchema } from './game.ts';
+import { BidSchema, EngineErrorReasonSchema, FaceSchema, PlayerViewSchema } from './game.ts';
 import { ControlReasonSchema, ProtocolEventSchema } from './events.ts';
 
 const playerId = z.string().min(1).max(64);
 const matchId = z.string().min(1).max(64);
 const seq = z.number().int().nonnegative();
+
+/**
+ * Why a state message was sent: a live transition, or the answer to a `resume`. A client can use
+ * it to skip animations when catching up after a reconnect.
+ */
+export const StateKindSchema = z.enum(['update', 'sync']);
 
 /** Problems that belong to the transport or the session rather than to the rules. */
 export const ProtocolErrorCodeSchema = z.enum([
@@ -58,12 +64,37 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
 
 // ─── server -> client ─────────────────────────────────────────────────────────
 
+/**
+ * What the recipient may legally bid, described without any rule a client would have to
+ * understand.
+ *
+ * For a fixed face the legal quantities are one contiguous run from a minimum up to the dice
+ * still in play (R-04's cap), so six numbers describe the whole legal set. That lets a client
+ * grey out an impossible button while containing zero rules logic — CLAUDE.md allows the
+ * former and forbids the latter, and sending the *answers* rather than the rules is how both
+ * hold at once. `packages/engine` computes it and a property test pins the contiguity.
+ */
+export const BidOptionSchema = z.strictObject({
+  face: FaceSchema,
+  /** Null when that face cannot be bid at all — see R-09's dead end. */
+  minQuantity: z.number().int().positive().nullable(),
+});
+
+export const BidOptionsSchema = z.strictObject({
+  /** One entry per face, faces 1 through 6 in order. */
+  options: z.array(BidOptionSchema),
+  /** R-04: no bid may exceed this. */
+  maxQuantity: z.number().int().nonnegative(),
+});
+
+/** Who is acting for a seat right now. */
+export const SeatControlSchema = z.enum(['human', 'bot']);
+
 export const SeatStatusSchema = z.strictObject({
   playerId,
   seat: z.number().int().nonnegative(),
   connected: z.boolean(),
-  /** Who is acting for this seat right now. */
-  control: z.enum(['human', 'bot']),
+  control: SeatControlSchema,
   controlReason: ControlReasonSchema.nullable(),
 });
 
@@ -78,6 +109,8 @@ export const MatchSnapshotSchema = z.strictObject({
   view: PlayerViewSchema,
   turnEndsInMs: z.number().int().nonnegative().nullable(),
   seats: z.array(SeatStatusSchema),
+  /** Present only when it is this recipient's turn to act. */
+  bidOptions: BidOptionsSchema.nullable(),
 });
 
 export const ServerMessageSchema = z.discriminatedUnion('type', [
@@ -114,7 +147,7 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
    */
   z.strictObject({
     type: z.literal('state'),
-    kind: z.enum(['update', 'sync']),
+    kind: StateKindSchema,
     matchId,
     seq,
     events: z.array(ProtocolEventSchema),
@@ -128,6 +161,10 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('pong') }),
 ]);
 
+export type SeatControl = DeepReadonly<z.infer<typeof SeatControlSchema>>;
+export type StateKind = DeepReadonly<z.infer<typeof StateKindSchema>>;
+export type BidOption = DeepReadonly<z.infer<typeof BidOptionSchema>>;
+export type BidOptions = DeepReadonly<z.infer<typeof BidOptionsSchema>>;
 export type ProtocolErrorCode = DeepReadonly<z.infer<typeof ProtocolErrorCodeSchema>>;
 export type ErrorCode = DeepReadonly<z.infer<typeof ErrorCodeSchema>>;
 export type ClientMessage = DeepReadonly<z.infer<typeof ClientMessageSchema>>;

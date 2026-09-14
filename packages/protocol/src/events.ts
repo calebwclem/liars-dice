@@ -58,11 +58,17 @@ export const ServerEventSchema = z.discriminatedUnion('type', [
 ]);
 
 /**
- * What a client actually receives: engine events and server events in one ordered stream,
- * flat because both are discriminated on `type` and a client wants to replay them in
- * order without caring which side of the boundary produced them.
+ * What a client actually receives: engine events and server events in one ordered stream.
+ *
+ * Built as a single discriminated union over both sets of variants rather than a union of
+ * two unions. A client wants to switch once over sixteen cases, not twice over two — and it
+ * means `tools/codegen` emits one flat Swift enum instead of a nested pair. The variants
+ * still come from the two schemas above, so there is nothing to keep in step by hand.
  */
-export const ProtocolEventSchema = z.union([GameEventSchema, ServerEventSchema]);
+export const ProtocolEventSchema = z.discriminatedUnion('type', [
+  ...GameEventSchema.options,
+  ...ServerEventSchema.options,
+]);
 
 export type ControlReason = DeepReadonly<z.infer<typeof ControlReasonSchema>>;
 export type ServerEvent = DeepReadonly<z.infer<typeof ServerEventSchema>>;

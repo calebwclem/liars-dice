@@ -39,20 +39,28 @@ export { ControlReasonSchema, ProtocolEventSchema, ServerEventSchema } from './e
 export type { ControlReason, ProtocolEvent, ServerEvent } from './events.ts';
 
 export {
+  BidOptionSchema,
+  BidOptionsSchema,
   ClientMessageSchema,
   ErrorCodeSchema,
   MatchSnapshotSchema,
   ProtocolErrorCodeSchema,
+  SeatControlSchema,
   SeatStatusSchema,
   ServerMessageSchema,
+  StateKindSchema,
 } from './messages.ts';
 export type {
+  BidOption,
+  BidOptions,
   ClientMessage,
   ErrorCode,
   MatchSnapshot,
   ProtocolErrorCode,
+  SeatControl,
   SeatStatus,
   ServerMessage,
+  StateKind,
 } from './messages.ts';
 
 export { encodeServerMessage, MAX_MESSAGE_BYTES, parseClientMessage } from './codec.ts';
