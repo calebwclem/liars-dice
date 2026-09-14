@@ -12,7 +12,26 @@ Real-time online multiplayer Liar's Dice. iOS first, then web, then Android.
 
 ## Status
 
-Phase 0 — not started. No code yet, only the spec.
+**Phases 0 and 1 complete.** `packages/engine` implements the ruleset as a pure,
+deterministic reducer with zero runtime dependencies. Rules R-01 to R-15 and R-20 are
+covered by tests; R-16 to R-19 (turn timers, AFK takeover, reconnect grace, abandonment)
+belong to Phase 2's server, and R-21 is v1.1 — see `docs/DECISIONS.md`.
+
+Play a match in the terminal:
+
+```bash
+pnpm install
+pnpm cli                      # you against three random-action bots
+pnpm cli -- --seed 42         # reproduce a specific match
+pnpm cli -- --players 6       # a six-handed table
+pnpm cli -- --auto            # let a bot take your seat, to watch a match play out
+```
+
+Verify:
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test
+```
 
 ## Prerequisites
 
