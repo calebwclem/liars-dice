@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+
+      - name: engine has zero runtime dependencies
+        run: |
+          deps=$(node -e "const p=require('./packages/engine/package.json');console.log(Object.keys({...p.dependencies,...p.peerDependencies,...p.optionalDependencies}).join(' '))")
+          if [ -n "$deps" ]; then echo "engine gained runtime deps: $deps"; exit 1; fi

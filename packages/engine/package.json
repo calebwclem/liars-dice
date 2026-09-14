@@ -1,0 +1,20 @@
+{
+  "name": "@liars-dice/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure, deterministic Liar's Dice rules engine. Zero runtime dependencies.",
+  "//": "No build step yet: Node >=22.18 strips types from .ts on the fly, so consumers import the source directly. apps/server adds a real build in Phase 2, when something actually ships this.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:prop": "vitest run test/properties.test.ts",
+    "cli": "node src/cli.ts"
+  },
+  "devDependencies": {
+    "fast-check": "^4.3.0"
+  }
+}
