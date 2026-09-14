@@ -1,0 +1,72 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clients/ios/**'
+      - 'packages/protocol/**'
+      - 'tools/codegen/**'
+      - 'apps/server/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: xcodegen · build · test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Sources/Generated is gitignored: the Swift models are a build product of the Zod
+      # schemas, so they are generated here rather than reviewed in a diff.
+      - name: generate Swift models from the protocol
+        run: pnpm codegen
+
+      # The transcript the decoding tests read is committed. Regenerating it here and failing on
+      # a diff is what stops it silently going stale against a protocol change.
+      - name: check the captured transcript is current
+        run: |
+          pnpm fixtures
+          git diff --exit-code clients/ios/Tests/Fixtures/transcript.json \
+            || { echo "::error::transcript.json is stale — run 'pnpm fixtures' and commit it"; exit 1; }
+
+      - run: brew install xcodegen
+
+      - name: generate the Xcode project
+        working-directory: clients/ios
+        run: xcodegen generate
+
+      # Pick whatever iPhone simulator this runner image actually has, rather than hard-coding a
+      # device name that changes with every Xcode release.
+      - name: choose a simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k in sorted(d, reverse=True) for x in d[k] if 'iPhone' in x['name']))")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices available | grep iPhone | head -3
+
+      - name: build and test
+        working-directory: clients/ios
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project LiarsDice.xcodeproj \
+            -scheme LiarsDice \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -40

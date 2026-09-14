@@ -60,9 +60,11 @@ pnpm lint && pnpm typecheck  # must both pass before you say a task is done
 iOS (run from `clients/ios/`):
 
 ```bash
+pnpm codegen                 # FIRST: Sources/Generated is a build product, not in git
 xcodegen generate            # ALWAYS after adding/removing/renaming a Swift file
-xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 16' build
-xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcrun simctl list devices available | grep iPhone   # device names change with Xcode
+xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17' build
+xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
 ## Hard rules

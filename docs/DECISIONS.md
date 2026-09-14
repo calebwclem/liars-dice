@@ -221,3 +221,75 @@ R-17's wording is specific about the *timeout* case, so that one is literal; the
 has no wording to obey. `packages/bots` (Phase 5) replaces both with binomial expectation over
 the unseen dice, and will take a redacted view — which is why neither of these looks at a
 hand today.
+
+---
+
+## 2026-09-14 — Codegen goes Zod → JSON Schema → Swift
+
+**Decision:** `tools/codegen` converts the protocol schemas with zod 4's `z.toJSONSchema`,
+normalises that into a small IR, and emits Swift from the IR. Discriminated unions become Swift
+enums with associated values; `Face` becomes an `Int`-backed enum; records become dictionaries.
+
+**Alternatives:** Walking zod's internal `_zod.def` tree (more precise, but private API that
+breaks on a minor upgrade); hand-writing the Swift models (forbidden by CLAUDE.md, and the thing
+most likely to drift).
+
+**Why:** JSON Schema is a public, documented output of zod and a stable intermediate, and the IR
+means the Swift emitter never has to know that `anyOf: [X, {type: 'null'}]` spells nullable.
+Phase 9's Kotlin emitter starts from the same IR rather than reinterpreting JSON Schema again.
+
+Two things the emitter has to get right that the compiler cannot guess. Nullable and optional
+both become `T?` in Swift but encode differently — an explicit `null` versus an absent key — and
+the server's schemas are strict, so conflating them produces rejected messages. And a nested
+payload struct must not shadow a top-level type: `ClientMessage.bid` generated a nested `Bid`
+whose own `bid: Bid` field resolved to itself, an infinitely sized type. Payload names that
+collide with a declared or standard-library type now gain a `Payload` suffix.
+
+---
+
+## 2026-09-14 — The server sends the legal bid set, so the client can grey out a button without knowing a rule
+
+**Decision:** `MatchSnapshot.bidOptions` carries, for the player on turn, the cheapest legal
+quantity per face plus R-04's cap. The engine computes it (`bidOptionsIn`); the client reads it.
+
+**Alternatives:** Reimplementing bid legality in Swift (forbidden: CLAUDE.md puts zero rules in
+the client); sending the whole legal set, up to 180 bids; sending nothing and letting every
+illegal tap cost a round trip.
+
+**Why:** Phase 2 gave the *TypeScript* engine a way to answer "is this legal" from a `PlayerView`,
+which a Swift client cannot call — a gap that only became visible when the client was built. For
+a fixed face the legal quantities are one contiguous run up to the cap, so six numbers describe
+the entire legal set exactly. That is a consequence of the bid comparator rather than anything
+stated in docs/RULES.md, so a property test pins it: if it ever stopped being true the client's
+bid picker would start offering illegal bids, and the test fails instead.
+
+---
+
+## 2026-09-14 — The iOS tests decode a captured server transcript
+
+**Decision:** `pnpm fixtures` drives a real `Room` through a whole match and writes every message
+one player received to `clients/ios/Tests/Fixtures/transcript.json`, which is committed. The Swift
+tests decode it, and the scripted-match test replays it through a stubbed socket.
+
+**Alternatives:** Hand-written Swift fixtures; standing up the Node server from the iOS test
+suite.
+
+**Why:** A hand-written fixture only proves the generated models agree with whoever wrote it. This
+proves they agree with what the server actually emits, including the R-18 connection events. The
+transcript going stale is itself caught: CI regenerates it and fails on a diff.
+
+---
+
+## 2026-09-14 — One app target, no extra module
+
+**Decision:** `clients/ios` is a single XcodeGen app target plus a unit-test target, exactly as
+CLAUDE.md describes.
+
+**Alternatives:** A local SwiftPM package for models, networking and view models, with the app as
+a thin shell.
+
+**Why:** The package split was motivated by a machine without Xcode, where `swift test` is the
+only way to run anything — XCTest needs Xcode. With Xcode present the motivation disappears, and
+DECISIONS.md already names Tuist as the upgrade path if this genuinely grows to several modules.
+One target keeps the project file trivial and leaves Phase 4 free to use iOS-only APIs without a
+platform guard.
