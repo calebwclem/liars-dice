@@ -38,6 +38,12 @@ export const isFace = (value: number): value is Face =>
  * an illegal button — which it can only do if it can ask the question. Both shapes can
  * produce a context, so the rule is implemented once and answers both.
  */
+/** The cheapest legal quantity for one face, or null if that face cannot be bid at all. */
+export interface BidOption {
+  readonly face: Face;
+  readonly minQuantity: number | null;
+}
+
 export interface BidContext {
   /** The bid on the table, or null if the round has not been opened (R-05). */
   readonly standing: Bid | null;
@@ -145,6 +151,30 @@ export const legalBids = (state: GameState): readonly Bid[] => legalBidsIn(bidCo
  * bullet). The player must then challenge. Phase 2's R-17 timeout auto-bid calls this.
  */
 export const minimumLegalBidIn = (ctx: BidContext): Bid | null => legalBidsIn(ctx)[0] ?? null;
+
+/**
+ * The cheapest legal quantity for each face, or null where that face has none.
+ *
+ * This exists so a client can grey out an impossible button without containing a single rule.
+ * For any fixed face the legal quantities are a contiguous run — everything from a threshold
+ * up to R-04's dice-in-play cap — so six numbers describe the entire legal set exactly. A
+ * property test asserts that contiguity, because the client's UI depends on it being true and
+ * it is a consequence of the comparator rather than something stated in docs/RULES.md.
+ *
+ * Sending this rather than the whole legal set keeps a snapshot small: six entries instead of
+ * up to 180 bids.
+ */
+export function bidOptionsIn(ctx: BidContext): readonly BidOption[] {
+  return FACES.map((face) => {
+    for (let quantity = 1; quantity <= ctx.diceInPlay; quantity += 1) {
+      if (checkBidIn(ctx, { quantity, face }).ok) return { face, minQuantity: quantity };
+    }
+    return { face, minQuantity: null };
+  });
+}
+
+export const bidOptionsOf = (state: GameState): readonly BidOption[] =>
+  bidOptionsIn(bidContextOf(state));
 
 export const minimumLegalBid = (state: GameState): Bid | null =>
   minimumLegalBidIn(bidContextOf(state));

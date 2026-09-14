@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
 import {
+  bidOptionsOf,
   checkBid,
   compareBids,
   createMatch,
@@ -266,5 +267,97 @@ describe('R-08/R-09 checked against the arithmetic in the document', () => {
         }
       }),
     );
+  });
+});
+
+describe('R-04..R-09: the legal set a client is told about', () => {
+  /** Six players, five dice each. */
+  const table = (standing: Bid | null, palifico = false): GameState =>
+    makeState({
+      hands: Object.fromEntries(ID_POOL.map((id) => [id, [1, 2, 3, 4, 5] as Face[]])),
+      bids: standing === null ? [] : [{ playerId: 'a', bid: standing }],
+      turnId: standing === null ? 'a' : 'b',
+      palifico,
+    });
+
+  test('R-04: for any face the legal quantities are one contiguous run up to the cap', () => {
+    // A client is handed six minimum quantities and draws its bid picker from them. That is
+    // only a faithful description of the rules if nothing legal sits *above* an illegal
+    // quantity for the same face — this is the test that says so.
+    fc.assert(
+      fc.property(
+        fc.option(
+          fc.record({
+            quantity: fc.integer({ min: 1, max: 30 }),
+            face: fc.constantFrom<Face>(1, 2, 3, 4, 5, 6),
+          }),
+          { nil: null },
+        ),
+        fc.boolean(),
+        (standing, palifico) => {
+          const state = table(standing, palifico);
+          const cap = totalDiceInPlay(state);
+          for (const option of bidOptionsOf(state)) {
+            for (let quantity = 1; quantity <= cap; quantity += 1) {
+              const legal = checkBid(state, { quantity, face: option.face }).ok;
+              const expected = option.minQuantity !== null && quantity >= option.minQuantity;
+              expect(legal, `(${String(quantity)},${String(option.face)})`).toBe(expected);
+            }
+          }
+        },
+      ),
+      RUNS,
+    );
+  });
+
+  test('R-08/R-09: the six minimums describe exactly the set legalBids enumerates', () => {
+    fc.assert(
+      fc.property(seeds, playerCounts, (seed, n) => {
+        const { states } = playRandomMatch({ seed, playerIds: ids(n) });
+        for (const state of states) {
+          if (state.phase.kind !== 'bidding') continue;
+          const cap = totalDiceInPlay(state);
+          const fromOptions = bidOptionsOf(state).flatMap((option) => {
+            // Bound to a local so the narrowing survives into the closure below.
+            const min = option.minQuantity;
+            if (min === null) return [];
+            return Array.from({ length: cap - min + 1 }, (_, i) => ({
+              quantity: min + i,
+              face: option.face,
+            }));
+          });
+          const enumerated = legalBids(state);
+          expect(fromOptions).toHaveLength(enumerated.length);
+          for (const candidate of enumerated) expect(fromOptions).toContainEqual(candidate);
+        }
+      }),
+      { numRuns: 40 },
+    );
+  });
+
+  test('R-09: a maximal ones bid leaves every face with no minimum at all', () => {
+    // Two players on one die each, standing (2,1): ones cannot go higher and a non-one face
+    // would need 2*2+1 = 5 dice. The client is told there is nothing to bid.
+    const state = makeState({
+      hands: { a: [1], b: [1] },
+      bids: [{ playerId: 'a', bid: bid(2, 1) }],
+      turnId: 'b',
+    });
+    expect(bidOptionsOf(state).every((option) => option.minQuantity === null)).toBe(true);
+  });
+
+  test('R-13: during palifico only the locked face has a minimum', () => {
+    const state = makeState({
+      hands: { a: [1, 2], b: [3, 4] },
+      palifico: true,
+      starterId: 'a',
+      bids: [{ playerId: 'a', bid: bid(2, 3) }],
+      turnId: 'b',
+    });
+    const options = bidOptionsOf(state);
+    expect(options.find((option) => option.face === 3)?.minQuantity).toBe(3);
+    for (const option of options) {
+      if (option.face !== 3) expect(option.minQuantity, `face ${String(option.face)}`).toBeNull();
+    }
   });
 });

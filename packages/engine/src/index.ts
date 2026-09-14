@@ -41,6 +41,8 @@ export { redactFor } from './redact.ts';
 export {
   bidContextOf,
   bidContextOfView,
+  bidOptionsIn,
+  bidOptionsOf,
   checkBid,
   checkBidIn,
   compareBids,
@@ -51,7 +53,7 @@ export {
   minimumLegalBid,
   minimumLegalBidIn,
 } from './bids.ts';
-export type { BidContext } from './bids.ts';
+export type { BidContext, BidOption } from './bids.ts';
 export {
   activePlayers,
   lockedFace,
