@@ -22,7 +22,7 @@ import type {
   PlayerId,
   Transition,
 } from '@liars-dice/engine';
-import { createMatch, redactFor, reduce } from '@liars-dice/engine';
+import { bidOptionsOf, createMatch, redactFor, reduce, totalDiceInPlay } from '@liars-dice/engine';
 import type {
   ControlReason,
   MatchSnapshot,
@@ -525,10 +525,16 @@ export class Room {
   private snapshotFor(playerId: PlayerId): MatchSnapshot {
     const remaining =
       this.turnEndsAt === null ? null : Math.max(0, this.turnEndsAt - this.options.clock.now());
+    // Only the player on turn is told what they may bid: it is the answer to a question
+    // nobody else is being asked, and R-04's cap makes it recipient-independent anyway.
+    const onTurn = this.state.phase.kind === 'bidding' && this.state.phase.turnId === playerId;
     return {
       view: redactFor(this.state, playerId),
       turnEndsInMs: remaining === null ? null : Math.round(remaining),
       seats: this.seatStatuses(),
+      bidOptions: onTurn
+        ? { options: bidOptionsOf(this.state), maxQuantity: totalDiceInPlay(this.state) }
+        : null,
     };
   }
 

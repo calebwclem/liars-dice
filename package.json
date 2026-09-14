@@ -9,14 +9,16 @@
   },
   "scripts": {
     "test": "pnpm -r test",
-    "typecheck": "tsc -p packages/engine && tsc -p packages/protocol && tsc -p apps/server",
+    "typecheck": "tsc -p packages/engine && tsc -p packages/protocol && tsc -p apps/server && tsc -p tools/codegen",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "cli": "pnpm --filter @liars-dice/engine cli",
     "dev:server": "pnpm --filter @liars-dice/server dev",
-    "test:integration": "pnpm --filter @liars-dice/server test:integration"
+    "test:integration": "pnpm --filter @liars-dice/server test:integration",
+    "codegen": "pnpm --filter @liars-dice/codegen generate",
+    "fixtures": "pnpm --filter @liars-dice/server fixtures"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

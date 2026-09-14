@@ -8,7 +8,8 @@
     "dev": "node --watch --env-file-if-exists=.env src/index.ts",
     "start": "node src/index.ts",
     "test": "vitest run",
-    "test:integration": "vitest run test/integration.test.ts"
+    "test:integration": "vitest run test/integration.test.ts",
+    "fixtures": "node scripts/fixtures.ts"
   },
   "dependencies": {
     "@liars-dice/engine": "workspace:*",

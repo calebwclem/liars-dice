@@ -1,0 +1,15 @@
+{
+  "name": "@liars-dice/codegen",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generates Swift (and later Kotlin) models from the Zod schemas in packages/protocol.",
+  "scripts": {
+    "generate": "node src/main.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@liars-dice/protocol": "workspace:*",
+    "zod": "^4.1.13"
+  }
+}
