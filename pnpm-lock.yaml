@@ -226,6 +226,15 @@ importers:
         specifier: workspace:*
         version: link:../engine
 
+  tools/codegen:
+    dependencies:
+      '@liars-dice/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      zod:
+        specifier: ^4.1.13
+        version: 4.6.4
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.2':
