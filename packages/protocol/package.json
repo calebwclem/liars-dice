@@ -1,0 +1,19 @@
+{
+  "name": "@liars-dice/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zod schemas for every client<->server message. The wire contract, and the source tools/codegen reads.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@liars-dice/engine": "workspace:*"
+  }
+}

@@ -197,6 +197,16 @@ importers:
         specifier: ^4.3.0
         version: 4.10.0
 
+  packages/protocol:
+    dependencies:
+      zod:
+        specifier: ^4.1.13
+        version: 4.6.4
+    devDependencies:
+      '@liars-dice/engine':
+        specifier: workspace:*
+        version: link:../engine
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -1204,6 +1214,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  zod@4.6.4:
+    resolution: {integrity: sha512-AXSD6hvGdvRjajG/l1cC+d6IrhH+sjmPKtYeQdJIK8MFJl3LyClzS+o/YsVC+zQZPupAaeH5skwwm8YqYH7BqA==}
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -2104,3 +2117,5 @@ snapshots:
   word-wrap@1.2.5: {}
 
   yocto-queue@0.1.0: {}
+
+  zod@4.6.4: {}
