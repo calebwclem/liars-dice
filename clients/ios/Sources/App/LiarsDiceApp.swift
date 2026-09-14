@@ -28,7 +28,24 @@ struct LiarsDiceApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(session: session)
-                .task { await session.connect() }
+                .task {
+                    await session.connect()
+                    #if DEBUG
+                    // A debug-only hook so a simulator run can be scripted: without it there is
+                    // no way to press "Find a match" from the command line, and two simulators
+                    // playing each other is how PLAN.md defines this phase as done. Also handy
+                    // for iterating in Phase 4 without tapping through the lobby every launch.
+                    //
+                    //   xcrun simctl launch <device> com.liarsdice.app -autoQueue YES
+                    //
+                    // Read through UserDefaults rather than ProcessInfo: iOS folds `-key value`
+                    // launch arguments into the argument domain, which is the idiomatic way to
+                    // flag a build at launch and works the same from a scheme in Xcode.
+                    if UserDefaults.standard.bool(forKey: "autoQueue") {
+                        session.findMatch()
+                    }
+                    #endif
+                }
         }
     }
 }

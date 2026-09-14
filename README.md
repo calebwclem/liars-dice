@@ -49,6 +49,23 @@ cd clients/ios && xcodegen generate
 xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
+Two simulators against your local server, which is how PLAN.md defines this phase as done:
+
+```bash
+# a two-player table, so two simulators fill it with no bots
+MATCH_SIZE=2 AUTH_SECRET=$(openssl rand -hex 32) pnpm dev:server
+
+xcrun simctl boot "iPhone 17" && xcrun simctl boot "iPhone 16e"
+cd clients/ios && xcodegen generate
+xcodebuild -scheme LiarsDice -configuration Debug -sdk iphonesimulator \
+  -derivedDataPath /tmp/ld build CODE_SIGNING_ALLOWED=NO
+for d in "iPhone 17" "iPhone 16e"; do
+  xcrun simctl install "$d" /tmp/ld/Build/Products/Debug-iphonesimulator/LiarsDice.app
+  # -autoQueue is a DEBUG-only launch flag: it presses "Find a match" for you
+  xcrun simctl launch "$d" com.liarsdice.app -autoQueue YES
+done
+```
+
 `clients/ios/Sources/Generated/` is gitignored on purpose: the Swift models are a build product
 of the Zod schemas. Never hand-edit them, and never hand-edit `LiarsDice.xcodeproj` — edit
 `clients/ios/project.yml` and regenerate.
