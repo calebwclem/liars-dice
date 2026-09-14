@@ -8,6 +8,7 @@
  * shape and nothing hand-written ever is.
  */
 export { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from './version.ts';
+export type { DeepReadonly } from './readonly.ts';
 
 export {
   BidRecordSchema,

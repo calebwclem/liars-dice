@@ -6,6 +6,7 @@
  * or the engine. Outbound messages are built from `redactFor` output and nothing else.
  */
 import { z } from 'zod';
+import type { DeepReadonly } from './readonly.ts';
 import { BidSchema, EngineErrorReasonSchema, PlayerViewSchema } from './game.ts';
 import { ControlReasonSchema, ProtocolEventSchema } from './events.ts';
 
@@ -127,9 +128,9 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('pong') }),
 ]);
 
-export type ProtocolErrorCode = z.infer<typeof ProtocolErrorCodeSchema>;
-export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
-export type ClientMessage = z.infer<typeof ClientMessageSchema>;
-export type SeatStatus = z.infer<typeof SeatStatusSchema>;
-export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;
-export type ServerMessage = z.infer<typeof ServerMessageSchema>;
+export type ProtocolErrorCode = DeepReadonly<z.infer<typeof ProtocolErrorCodeSchema>>;
+export type ErrorCode = DeepReadonly<z.infer<typeof ErrorCodeSchema>>;
+export type ClientMessage = DeepReadonly<z.infer<typeof ClientMessageSchema>>;
+export type SeatStatus = DeepReadonly<z.infer<typeof SeatStatusSchema>>;
+export type MatchSnapshot = DeepReadonly<z.infer<typeof MatchSnapshotSchema>>;
+export type ServerMessage = DeepReadonly<z.infer<typeof ServerMessageSchema>>;

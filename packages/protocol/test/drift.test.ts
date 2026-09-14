@@ -33,7 +33,11 @@ import {
  *     `nullable`, a record key rule).
  */
 
-/** Deep-mutable, since `z.infer` produces mutable types and the engine's are readonly. */
+/**
+ * Deep-mutable. Both sides are readonly — the engine's by hand, the protocol's via
+ * `DeepReadonly` — so the comparison strips the modifiers and checks the structure, which
+ * is where drift actually happens.
+ */
 type Mutable<T> = T extends readonly (infer E)[]
   ? Mutable<E>[]
   : T extends object
@@ -55,21 +59,21 @@ const assertEquals = <T extends true>(): T => true as T;
 
 describe('Schemas match the engine at the type level', () => {
   test('PlayerView', () => {
-    expect(assertEquals<Equals<PlayerView, Mutable<EnginePlayerView>>>()).toBe(true);
+    expect(assertEquals<Equals<Mutable<PlayerView>, Mutable<EnginePlayerView>>>()).toBe(true);
   });
 
   test('GameEvent', () => {
-    expect(assertEquals<Equals<GameEvent, Mutable<EngineGameEvent>>>()).toBe(true);
+    expect(assertEquals<Equals<Mutable<GameEvent>, Mutable<EngineGameEvent>>>()).toBe(true);
   });
 
   test('Face and Bid', () => {
-    expect(assertEquals<Equals<Face, EngineFace>>()).toBe(true);
+    expect(assertEquals<Equals<Mutable<Face>, EngineFace>>()).toBe(true);
     expect(assertEquals<Equals<Mutable<EngineBid>, { quantity: number; face: Face }>>()).toBe(true);
   });
 
   test('ErrorReason', () => {
     // Every engine reason code is in the enum and the enum invents none.
-    expect(assertEquals<Equals<EngineErrorReason, EngineErrorReasonType>>()).toBe(true);
+    expect(assertEquals<Equals<Mutable<EngineErrorReason>, EngineErrorReasonType>>()).toBe(true);
   });
 });
 

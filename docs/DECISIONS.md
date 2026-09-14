@@ -133,3 +133,91 @@ player learns their own hand exclusively from `redactFor(state, playerId).you.di
 **Why:** It collapses the redaction problem to a single function plus a single invariant
 that a test can state directly, instead of a per-event audit. `roundStarted` therefore
 carries dice *counts* only, and there is no `diceRolled` event at all.
+
+---
+
+## 2026-09-14 — R-16 to R-19 live in the server, not the engine
+
+**Decision:** The turn timer, the timeout auto-bid, AFK takeover, the reconnect grace period
+and abandonment are implemented in `apps/server/src/room.ts`. The engine stays silent on
+clocks and sockets; it gained nothing for Phase 2 except a way to answer "is this bid legal"
+from a `PlayerView`.
+
+**Alternatives:** Modelling them in the engine as system actions (`timeout`, `disconnect`,
+`reconnect`, `botTakeover`) with deadlines computed from `ctx.now` — the shape proposed and
+rejected during the Phase 1 design review.
+
+**Why:** These four rules are about connection state, which is the server's subject. Keeping
+them out of the engine leaves `packages/engine` a pure function of the *rules* — the thing
+the web client will one day run offline, where no socket exists. The cost is that R-16..R-19
+are tested against a fake clock in `apps/server` rather than as reducer cases, which is why
+`Clock` is injected everywhere: a 45-second rule has to be testable in a millisecond.
+
+---
+
+## 2026-09-14 — One message carries both the events and the resulting snapshot
+
+**Decision:** Every state change sends one `state` message per player containing the events
+of the transition *and* that player's full redacted snapshot. `resume` answers with the same
+shape, marked `sync`, plus whatever events are still in the room's history buffer.
+
+**Alternatives:** Events only, with clients folding them into local state (smaller messages,
+and the usual source of desync bugs); snapshots only (no way to animate what changed).
+
+**Why:** A client never has to derive truth from an event stream — the snapshot is always
+authoritative and the events exist purely so the UI can animate what just happened. That
+makes reconnection trivial: the answer to "what did I miss" is the same message shape as
+"here is what happened", and a client that ignores the event list is still correct, just less
+pretty. At six players a snapshot is a few hundred bytes and there is roughly one per turn.
+
+---
+
+## 2026-09-14 — In-memory matchmaking and stateless guest tokens; no Redis, no Postgres
+
+**Decision:** The queue, the room registry and presence are process memory. Guest identity is
+a `playerId.expiry.hmac` token signed with `AUTH_SECRET`, so the server can recognise a
+returning player without storing anything.
+
+**Alternatives:** Redis for the queue and presence now, per the PLAN.md diagram.
+
+**Why:** Phase 2's queue is a list of at most a few player ids, and its done-criterion is an
+in-process integration test. Redis earns its place when there is a second machine and a
+socket has to be routed to the room that holds it — `fly-replay` and a room→machine map —
+which is a different problem than the one being solved here. Stateless tokens mean Phase 2
+needs no database at all; Phase 6 adds Postgres when there are accounts worth persisting.
+There is no revocation and no refresh, which is the honest cost of having no store.
+
+---
+
+## 2026-09-14 — A CSPRNG for dice costs exact replay, and that is the right trade
+
+**Decision:** The server passes `crypto.randomBytes`-backed randomness to the engine (R-20).
+The room keeps its action list in memory, but an action list alone no longer reproduces a
+match.
+
+**Alternatives:** Seeding a PRNG per match from a CSPRNG value and storing the seed — which
+would keep replay exact *and* set up R-21's fairness commitment.
+
+**Why:** R-20 says dice are rolled with a CSPRNG, and the literal reading is the safe one
+while nothing depends on replay yet. The seeded-per-match alternative is genuinely
+attractive and is what R-21 will need in v1.1; revisit it then, together with publishing
+`SHA-256(seed || roundId)` at round start. Until then, replaying a match means recording the
+rolls, which the reveal events already contain.
+
+---
+
+## 2026-09-14 — Two auto-play policies, both placeholders
+
+**Decision:** `timeoutAction` plays R-17's minimum legal raise, exactly as the rule states.
+`botAction` — what a seat plays once a bot holds it for good — picks a random legal action
+with a fixed challenge rate. Both live in `apps/server/src/autoplay.ts` and read only the bid
+context, never anyone's dice.
+
+**Alternatives:** One policy for both, always the minimum legal raise.
+
+**Why:** A seat that always plays the minimum raise walks every round up the entire bid
+ladder, which is legal but makes the match interminable for the humans still at the table.
+R-17's wording is specific about the *timeout* case, so that one is literal; the takeover case
+has no wording to obey. `packages/bots` (Phase 5) replaces both with binomial expectation over
+the unseen dice, and will take a redacted view — which is why neither of these looks at a
+hand today.

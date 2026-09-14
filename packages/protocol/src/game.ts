@@ -8,6 +8,7 @@
  * than by hope. `tools/codegen` reads this file to generate the Swift models.
  */
 import { z } from 'zod';
+import type { DeepReadonly } from './readonly.ts';
 
 const playerId = z.string().min(1).max(64);
 const count = z.number().int().nonnegative();
@@ -141,13 +142,13 @@ export const EngineErrorReasonSchema = z.enum([
   'DUPLICATE_PLAYER_ID',
 ]);
 
-export type Face = z.infer<typeof FaceSchema>;
-export type Bid = z.infer<typeof BidSchema>;
-export type BidRecord = z.infer<typeof BidRecordSchema>;
-export type Phase = z.infer<typeof PhaseSchema>;
-export type RevealSummary = z.infer<typeof RevealSummarySchema>;
-export type PublicPlayer = z.infer<typeof PublicPlayerSchema>;
-export type MatchConfig = z.infer<typeof MatchConfigSchema>;
-export type PlayerView = z.infer<typeof PlayerViewSchema>;
-export type GameEvent = z.infer<typeof GameEventSchema>;
-export type EngineErrorReason = z.infer<typeof EngineErrorReasonSchema>;
+export type Face = DeepReadonly<z.infer<typeof FaceSchema>>;
+export type Bid = DeepReadonly<z.infer<typeof BidSchema>>;
+export type BidRecord = DeepReadonly<z.infer<typeof BidRecordSchema>>;
+export type Phase = DeepReadonly<z.infer<typeof PhaseSchema>>;
+export type RevealSummary = DeepReadonly<z.infer<typeof RevealSummarySchema>>;
+export type PublicPlayer = DeepReadonly<z.infer<typeof PublicPlayerSchema>>;
+export type MatchConfig = DeepReadonly<z.infer<typeof MatchConfigSchema>>;
+export type PlayerView = DeepReadonly<z.infer<typeof PlayerViewSchema>>;
+export type GameEvent = DeepReadonly<z.infer<typeof GameEventSchema>>;
+export type EngineErrorReason = DeepReadonly<z.infer<typeof EngineErrorReasonSchema>>;

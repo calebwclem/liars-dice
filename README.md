@@ -12,12 +12,16 @@ Real-time online multiplayer Liar's Dice. iOS first, then web, then Android.
 
 ## Status
 
-**Phases 0 and 1 complete.** `packages/engine` implements the ruleset as a pure,
-deterministic reducer with zero runtime dependencies. Rules R-01 to R-15 and R-20 are
-covered by tests; R-16 to R-19 (turn timers, AFK takeover, reconnect grace, abandonment)
-belong to Phase 2's server, and R-21 is v1.1 — see `docs/DECISIONS.md`.
+**Phases 0, 1 and 2 complete.** Every rule in `docs/RULES.md` is implemented and tested
+except R-21, which the document itself marks v1.1.
 
-Play a match in the terminal:
+| Package | What it is |
+|---|---|
+| `packages/engine` | The rules (R-01..R-15, R-20) as a pure deterministic reducer. Zero runtime dependencies. |
+| `packages/protocol` | Zod schemas for every message. `PROTOCOL_VERSION = 1`. The source `tools/codegen` will read. |
+| `apps/server` | WebSocket gateway, guest auth, matchmaker, room actors. Owns the clock and the sockets, so it owns R-16..R-19. |
+
+Play a match in the terminal, no server needed:
 
 ```bash
 pnpm install
@@ -27,10 +31,18 @@ pnpm cli -- --players 6       # a six-handed table
 pnpm cli -- --auto            # let a bot take your seat, to watch a match play out
 ```
 
+Run the server:
+
+```bash
+cp apps/server/.env.example apps/server/.env    # AUTH_SECRET is generated in dev if unset
+pnpm dev:server                                 # ws://localhost:8080, GET /health
+```
+
 Verify:
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test
+pnpm test:integration        # four clients, a full match, a disconnect and a resync
 ```
 
 ## Prerequisites

@@ -1,0 +1,22 @@
+{
+  "name": "@liars-dice/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WebSocket gateway, matchmaker, and room actors. Owns the clock and the sockets; the engine owns the rules.",
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/index.ts",
+    "start": "node src/index.ts",
+    "test": "vitest run",
+    "test:integration": "vitest run test/integration.test.ts"
+  },
+  "dependencies": {
+    "@liars-dice/engine": "workspace:*",
+    "@liars-dice/protocol": "workspace:*",
+    "ws": "^8.21.3",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
+  }
+}

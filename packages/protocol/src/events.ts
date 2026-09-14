@@ -9,6 +9,7 @@
  * carries a die face.
  */
 import { z } from 'zod';
+import type { DeepReadonly } from './readonly.ts';
 import { BidSchema, GameEventSchema } from './game.ts';
 
 const playerId = z.string().min(1).max(64);
@@ -63,6 +64,6 @@ export const ServerEventSchema = z.discriminatedUnion('type', [
  */
 export const ProtocolEventSchema = z.union([GameEventSchema, ServerEventSchema]);
 
-export type ControlReason = z.infer<typeof ControlReasonSchema>;
-export type ServerEvent = z.infer<typeof ServerEventSchema>;
-export type ProtocolEvent = z.infer<typeof ProtocolEventSchema>;
+export type ControlReason = DeepReadonly<z.infer<typeof ControlReasonSchema>>;
+export type ServerEvent = DeepReadonly<z.infer<typeof ServerEventSchema>>;
+export type ProtocolEvent = DeepReadonly<z.infer<typeof ProtocolEventSchema>>;

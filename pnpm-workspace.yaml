@@ -1,5 +1,6 @@
 packages:
   - 'packages/*'
+  - 'apps/*'
 
 # esbuild ships a prebuilt binary that vitest needs; it is the only package allowed to
 # run an install script. Nothing in packages/engine may ever appear here.
