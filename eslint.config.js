@@ -65,6 +65,13 @@ export default tseslint.config(
   },
 
   {
+    // This file belongs to no tsconfig, so there is no type information for it. Lint it
+    // for syntax only rather than inventing a project just to cover the linter's config.
+    files: ['eslint.config.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+
+  {
     files: ['**/*.test.ts', '**/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',

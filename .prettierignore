@@ -2,3 +2,8 @@ node_modules/
 dist/
 coverage/
 pnpm-lock.yaml
+
+# Prose is hand-wrapped and docs/RULES.md is the canonical spec — Prettier must not
+# reflow either. It reformats emphasis markers and table pipes, which makes spec diffs
+# unreadable.
+*.md
