@@ -293,3 +293,68 @@ only way to run anything — XCTest needs Xcode. With Xcode present the motivati
 DECISIONS.md already names Tuist as the upgrade path if this genuinely grows to several modules.
 One target keeps the project file trivial and leaves Phase 4 free to use iOS-only APIs without a
 platform guard.
+
+---
+
+## 2026-09-16 — A themed table rather than a native-restrained one
+
+**Decision:** Phase 4 takes the felt-and-leather direction: a lit green table, dice drawn with real
+pips, a leather cup that lifts on the reveal, serif numerals, brass accents.
+
+**Alternatives:** A restrained native look — system materials, SF Symbols, the platform type scale
+— which would have been faster and would inherit dark mode, Dynamic Type and accessibility for
+free.
+
+**Why:** The owner chose it. What it costs is worth writing down, because none of it is optional:
+every colour is defined twice (`Theme.adaptive`) since a bright felt green glows in the dark; the
+dice are a `Shape` rather than the Unicode die glyphs, which are missing from the system font and
+render as ▫ on device; and every animation is gated on `accessibilityReduceMotion`, because a table
+of tumbling dice is exactly the interface where motion is both the point and the problem.
+
+---
+
+## 2026-09-16 — Haptics carry the feedback; audio is deferred
+
+**Decision:** A full haptic vocabulary (`Haptics.Beat`) and no sound at all. Each beat of a round
+has one feel and always the same one: a rigid tap per die as a hand lands, light on a bid, soft on
+your turn, medium on a challenge, success/warning on the verdict, heavy on a lost die, error on an
+elimination.
+
+**Alternatives:** Synthesised placeholder tones; building the audio layer with the asset files left
+missing.
+
+**Why:** I cannot hear anything I produce, so shipping audio would mean shipping something nobody
+had judged — and placeholder audio has a way of becoming permanent. Haptics can be reasoned about
+precisely from the API. The call sites are in the view model rather than the views, behind an
+injected closure, which is what lets `MatchFeelTests` assert the *order* a reveal is felt in.
+
+A related rule falls out of R-18: a resync is silent. Catching up after a reconnect must not replay
+every buzz the player missed, so only live updates are felt.
+
+---
+
+## 2026-09-16 — The reveal is a sequence, not a state
+
+**Decision:** `MatchViewModel` owns a `RevealBeat` that advances cup → hands → counting → verdict →
+outcome over roughly 2.5 seconds, inside the window the server holds the table for.
+
+**Alternatives:** Showing the whole reveal at once, as Phase 3 did.
+
+**Why:** R-10 is atomic on the server and has to be — but a person needs the moment spread out to
+follow what happened to them, particularly *which* dice counted, since a wild one counting toward
+another face is the single most confusing thing in the game for a new player. Pacing is injectable
+(`RevealPacing.instant`) so tests assert the sequence without waiting for it.
+
+---
+
+## 2026-09-16 — turnStarted removed; the snapshot carries the turn length
+
+**Decision:** The `turnStarted` server event, declared in Phase 2 and never emitted by anything, is
+gone. `MatchSnapshot` gained `turnMs` instead.
+
+**Alternatives:** Emitting `turnStarted` on every turn change.
+
+**Why:** The countdown ring needs the whole as well as the remainder — a fraction cannot be drawn
+without it — and that is the only thing the event carried that the snapshot did not already say.
+Dead wire surface that no server emits is exactly the kind of thing that rots, and the snapshot is
+already where the other server-owned annotations live.

@@ -531,6 +531,7 @@ export class Room {
     return {
       view: redactFor(this.state, playerId),
       turnEndsInMs: remaining === null ? null : Math.round(remaining),
+      turnMs: this.options.timings.turnMs,
       seats: this.seatStatuses(),
       bidOptions: onTurn
         ? { options: bidOptionsOf(this.state), maxQuantity: totalDiceInPlay(this.state) }

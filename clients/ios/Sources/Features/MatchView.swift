@@ -1,235 +1,517 @@
 import SwiftUI
 
-/// The table. Unstyled on purpose — Phase 4 is where this becomes a product; Phase 3 only has
-/// to be *right*.
+/// The table.
 ///
-/// The view holds no state of its own beyond what it reads from the view model, and it decides
-/// nothing: which buttons are live comes from `match.canBid` / `match.canChallenge`, which in
-/// turn come from the server's `bidOptions`. A disabled control is a hint, and the server
-/// re-validates regardless.
+/// The view decides nothing. Which controls are live comes from `match.canBid` / `canChallenge`,
+/// which come from the server's `bidOptions`; what a reveal is showing comes from `match.revealBeat`.
+/// A disabled control is a hint, and the server re-validates regardless.
 struct MatchView: View {
     let match: MatchViewModel
     let leave: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
-            seats
-            if let reveal = match.revealOnShow {
-                RevealPanel(reveal: reveal, myPlayerId: match.myPlayerId)
-            } else if let winnerId = match.winnerId {
-                WinnerPanel(winnerId: winnerId, iWon: match.iWon, leave: leave)
-            } else {
-                bidding
-            }
-            Divider()
-            feed
-        }
-        .padding()
-    }
+        ZStack {
+            FeltBackground()
 
-    // MARK: - Pieces
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Round \(match.roundNumber)").font(.headline)
-                if match.isPalifico {
-                    Text("PALIFICO")
-                        .font(.caption.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.yellow.opacity(0.3), in: .capsule)
-                }
-                Spacer()
-                Text("\(match.totalDiceInPlay) dice in play")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            HStack(spacing: 6) {
-                Text("Your dice:").font(.subheadline)
-                // R-03: the only hand any client is ever sent before a reveal.
-                Text(match.myDice.map(\.glyph).joined(separator: " "))
-                    .font(.title2)
-                    .accessibilityLabel(match.myDice.map(\.spoken).joined(separator: ", "))
-            }
-            if let locked = match.lockedFace {
-                Text("Face locked to \(locked.glyph) for this round")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var seats: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(match.players, id: \.id) { player in
-                HStack(spacing: 8) {
-                    Text(player.id == match.turnHolder ? "▶" : " ")
-                    Text(player.id == match.myPlayerId ? "You" : player.id)
-                        .fontWeight(player.id == match.myPlayerId ? .semibold : .regular)
-                    if player.eliminated {
-                        Text("out").font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Text(String(repeating: "▪", count: player.diceCount))
-                            .foregroundStyle(.secondary)
-                    }
-                    if let seat = match.seat(of: player.id) {
-                        if seat.control == .bot {
-                            Text("bot").font(.caption2).foregroundStyle(.orange)
-                        } else if !seat.connected {
-                            Text("offline").font(.caption2).foregroundStyle(.red)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    seats
+                    Group {
+                        if let reveal = match.revealOnShow {
+                            RevealPanel(
+                                reveal: reveal,
+                                beat: match.revealBeat,
+                                myPlayerId: match.myPlayerId,
+                                name: match.shortName
+                            )
+                        } else if let winnerId = match.winnerId {
+                            WinnerPanel(
+                                name: match.shortName(winnerId),
+                                iWon: match.iWon,
+                                leave: leave
+                            )
+                        } else {
+                            bidding
                         }
                     }
-                    Spacer()
+                    .transition(.opacity)
+                    myHand
+                    feed
                 }
-                .font(.subheadline)
+                .padding(18)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .motion(Theme.Motion.fade, reduced: reduceMotion, value: match.revealBeat)
+        .motion(Theme.Motion.fade, reduced: reduceMotion, value: match.winnerId)
+        .foregroundStyle(Theme.ink)
+        .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Round \(match.roundNumber)")
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                Text(match.totalDiceInPlay == 1 ? "1 die in play" : "\(match.totalDiceInPlay) dice in play")
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSoft)
+            }
+            Spacer()
+            if match.isPalifico {
+                PalificoBadge(lockedFace: match.lockedFace)
             }
         }
     }
+
+    // MARK: - Seats
+
+    private var seats: some View {
+        VStack(spacing: 8) {
+            ForEach(match.players, id: \.id) { player in
+                SeatRow(
+                    player: player,
+                    name: match.shortName(player.id),
+                    isMe: player.id == match.myPlayerId,
+                    onTurn: player.id == match.turnHolder,
+                    status: match.seat(of: player.id),
+                    deadline: player.id == match.turnHolder ? match.turnDeadline : nil,
+                    turnLength: match.turnLength
+                )
+            }
+        }
+    }
+
+    // MARK: - Your hand
+
+    private var myHand: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Your hand")
+                .font(.caption.smallCaps())
+                .foregroundStyle(Theme.inkSoft)
+            if match.myDice.isEmpty {
+                Text("You are out of this match.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSoft)
+            } else {
+                RolledHand(
+                    dice: match.myDice,
+                    size: 46,
+                    rollToken: match.rollToken,
+                    countingFace: match.revealBeat >= .counting ? match.revealOnShow?.bid.face : nil,
+                    wildOnes: match.revealOnShow?.wildOnes ?? false
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Bidding
 
     @ViewBuilder
     private var bidding: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let standing = match.standingBid {
-                Text("Standing bid: \(standing.short) — \(standing.spoken)")
-                    .font(.subheadline)
-            } else {
-                Text("No bid yet — the opener must bid").font(.subheadline)
-            }
-
-            if match.iAmBotControlled {
-                Text("A bot is playing your seat.").foregroundStyle(.orange)
-            } else if match.isMyTurn {
-                yourTurn
-            } else if let holder = match.turnHolder {
-                HStack {
-                    Text("Waiting for \(holder)…").foregroundStyle(.secondary)
-                    if let remaining = match.turnEndsInMs {
-                        Text("\(remaining / 1000)s").font(.caption).foregroundStyle(.secondary)
+        TablePanel {
+            VStack(alignment: .leading, spacing: 12) {
+                if let standing = match.standingBid, let bidder = match.bidHistory.last?.playerId {
+                    HStack(spacing: 8) {
+                        Text("\(match.shortName(bidder)) bids")
+                            .foregroundStyle(Theme.inkSoft)
+                        BidChip(bid: standing)
                     }
+                    .font(.subheadline)
+                } else {
+                    Text("No bid yet — whoever opens must bid.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSoft)
                 }
-            }
 
-            if let rejection = match.rejection {
-                Text(rejection.readable).font(.caption).foregroundStyle(.red)
+                if match.iAmBotControlled {
+                    Label("A bot is playing your seat", systemImage: "cpu")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.brass)
+                } else if match.isMyTurn {
+                    yourTurn
+                } else if let holder = match.turnHolder {
+                    Text("Waiting for \(match.shortName(holder))…")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSoft)
+                }
+
+                if let rejection = match.rejection {
+                    Label(rejection.readable, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Theme.alarm)
+                        .transition(.opacity)
+                }
             }
         }
     }
 
     private var yourTurn: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Your turn").font(.headline)
-                if let remaining = match.turnEndsInMs {
-                    // R-16: a 30-second turn, enforced by the server. Phase 4 makes this a ring.
-                    Text("\(remaining / 1000)s left")
-                        .font(.caption)
-                        .foregroundStyle(remaining < 10_000 ? .red : .secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            if let blocked = match.bidBlockedReason {
+                // R-09's dead end, most often: no legal raise exists, so dudo is the only move.
+                Label(blocked, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(Theme.brass)
+            } else {
+                facePicker
+                quantityStepper
+            }
+            actions
+        }
+    }
+
+    private var facePicker: some View {
+        HStack(spacing: 10) {
+            ForEach(Face.allCases, id: \.self) { face in
+                let available = match.minimumQuantity(for: face) != nil
+                Button {
+                    match.choose(face: face)
+                } label: {
+                    DieView(face: face, size: 40)
+                        .opacity(available ? 1 : 0.28)
+                        .overlay {
+                            if face == match.draftFace {
+                                RoundedRectangle(cornerRadius: 40 * Theme.dieRadius, style: .continuous)
+                                    .strokeBorder(Theme.brass, lineWidth: 3)
+                            }
+                        }
                 }
-            }
-
-            // The face picker offers only faces the server says can be bid. During a palifico
-            // round that is a single face (R-13); off a maximal ones bid it is none at all
-            // (R-09's dead end), and then challenging is the only move left.
-            HStack(spacing: 8) {
-                ForEach(match.biddableFaces, id: \.self) { face in
-                    Button(face.glyph) { match.choose(face: face) }
-                        .font(.title3)
-                        .buttonStyle(.bordered)
-                        .tint(face == match.draftFace ? .accentColor : .gray)
-                        .accessibilityLabel(face.spoken)
-                }
-            }
-
-            HStack(spacing: 12) {
-                Button("−") { match.nudgeQuantity(by: -1) }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("fewer dice")
-                Text("\(match.draftQuantity) × \(match.draftFace.glyph)")
-                    .font(.title3.monospacedDigit())
-                    .frame(minWidth: 90)
-                Button("+") { match.nudgeQuantity(by: 1) }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("more dice")
-            }
-
-            HStack(spacing: 12) {
-                Button("Bid") { match.submitBid() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!match.canBid)
-                Button("Dudo") { match.callDudo() }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .disabled(!match.canChallenge)
+                .buttonStyle(.plain)
+                .disabled(!available)
+                .accessibilityLabel(face.spoken)
+                .accessibilityHint(available ? "choose this face" : "cannot be bid right now")
             }
         }
     }
 
-    private var feed: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(Array(match.log.suffix(12).enumerated()), id: \.offset) { entry in
-                    Text(entry.element.summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+    private var quantityStepper: some View {
+        HStack(spacing: 16) {
+            stepperButton("minus", label: "fewer dice") { match.nudgeQuantity(by: -1) }
+            HStack(spacing: 8) {
+                Text("\(match.draftQuantity)")
+                    .font(.system(.largeTitle, design: .serif, weight: .semibold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text("×").foregroundStyle(Theme.inkSoft)
+                DieView(face: match.draftFace, size: 34)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minWidth: 120)
+            .animation(.snappy, value: match.draftQuantity)
+            stepperButton("plus", label: "more dice") { match.nudgeQuantity(by: 1) }
         }
-        .frame(maxHeight: 160)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(match.draftQuantity) \(match.draftFace.spoken)")
+    }
+
+    private func stepperButton(_ symbol: String, label: String, action: @escaping () -> Void)
+        -> some View
+    {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.headline)
+                .frame(width: 44, height: 44)
+                .background(.white.opacity(0.10), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private var actions: some View {
+        HStack(spacing: 12) {
+            Button {
+                match.submitBid()
+            } label: {
+                Text("Bid").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(TableButton(tint: Theme.brass))
+            .disabled(!match.canBid)
+
+            Button {
+                match.callDudo()
+            } label: {
+                Text("Dudo").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(TableButton(tint: Theme.alarm))
+            .disabled(!match.canChallenge)
+            .accessibilityHint("call the current bid a lie")
+        }
+    }
+
+    // MARK: - Feed
+
+    private var feed: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(match.log.suffix(6).enumerated()), id: \.offset) { entry in
+                Text(entry.element.summary(match.naming))
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSoft)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-/// R-10: the one moment every hand is public.
-struct RevealPanel: View {
-    let reveal: RevealSummary
-    let myPlayerId: String
+// MARK: - Pieces
+
+private struct SeatRow: View {
+    let player: PublicPlayer
+    let name: String
+    let isMe: Bool
+    let onTurn: Bool
+    let status: SeatStatus?
+    let deadline: Date?
+    let turnLength: TimeInterval
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Reveal").font(.headline)
-            Text("\(reveal.challengerId) called dudo on \(reveal.bidderId)'s \(reveal.bid.spoken)")
-                .font(.subheadline)
-            if !reveal.wildOnes {
-                Text("Ones are not wild this round").font(.caption).foregroundStyle(.secondary)
+        HStack(spacing: 10) {
+            if let deadline, onTurn {
+                TurnRing(deadline: deadline, total: turnLength, size: 34)
+            } else {
+                Circle()
+                    .fill(onTurn ? Theme.brass.opacity(0.4) : .white.opacity(0.08))
+                    .frame(width: 34, height: 34)
             }
-            ForEach(reveal.hands.keys.sorted(), id: \.self) { playerId in
+
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(playerId == myPlayerId ? "You" : playerId)
-                        .frame(width: 90, alignment: .leading)
-                    Text((reveal.hands[playerId] ?? []).map(\.glyph).joined(separator: " "))
+                    Text(name)
+                        .font(.subheadline.weight(isMe ? .semibold : .regular))
+                        .lineLimit(1)
+                    if status?.control == .bot {
+                        Image(systemName: "cpu")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.brass)
+                            .accessibilityLabel("played by a bot")
+                    } else if status?.connected == false {
+                        Image(systemName: "wifi.slash")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.alarm)
+                            .accessibilityLabel("disconnected")
+                    }
                 }
-                .font(.subheadline)
+                if player.eliminated {
+                    Text("out")
+                        .font(.caption)
+                        .foregroundStyle(Theme.inkSoft)
+                } else {
+                    HStack(spacing: 4) {
+                        ForEach(0..<player.diceCount, id: \.self) { _ in
+                            DieView(face: nil, size: 14, hidden: true)
+                        }
+                    }
+                    .accessibilityLabel(player.diceCount == 1 ? "1 die" : "\(player.diceCount) dice")
+                }
             }
-            Text("\(reveal.actualCount) × \(reveal.bid.face.glyph) against a bid of \(reveal.bid.quantity)")
-                .font(.subheadline.bold())
-            Text(reveal.bidStands ? "The bid was good." : "The bid was a lie.")
-                .foregroundStyle(reveal.bidStands ? .green : .red)
-            Text("\(reveal.loserId) loses a die — \(reveal.loserDiceCount) left")
-            if let eliminated = reveal.eliminatedId {
-                Text("\(eliminated) is out").foregroundStyle(.red)
+            Spacer()
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .background(onTurn ? AnyShapeStyle(.white.opacity(0.07)) : AnyShapeStyle(.clear),
+                    in: .rect(cornerRadius: 10))
+    }
+}
+
+private struct BidChip: View {
+    let bid: Bid
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("\(bid.quantity)")
+                .font(.system(.title3, design: .serif, weight: .semibold))
+                .monospacedDigit()
+            Text("×").foregroundStyle(Theme.inkSoft)
+            DieView(face: bid.face, size: 26)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.black.opacity(0.22), in: .capsule)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(bid.spoken)
+    }
+}
+
+private struct PalificoBadge: View {
+    let lockedFace: Face?
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text("PALIFICO")
+                .font(.caption.bold())
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Theme.brass.opacity(0.35), in: .capsule)
+            // R-13, said as a situation rather than as a rule number.
+            Text(lockedFace == nil ? "ones are not wild" : "ones are not wild · face locked")
+                .font(.caption2)
+                .foregroundStyle(Theme.inkSoft)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Palifico round. Ones are not wild and the face is locked.")
+    }
+}
+
+private struct TableButton: ButtonStyle {
+    let tint: Color
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .padding(.vertical, 12)
+            .foregroundStyle(isEnabled ? Theme.ink : Theme.inkSoft)
+            .background(
+                (isEnabled ? tint.opacity(0.85) : Color.white.opacity(0.08)),
+                in: .rect(cornerRadius: 12)
+            )
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.snappy(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// R-10, paced out. The cup comes up, the hands appear, the dice that count light up, and only
+/// then is the verdict said out loud.
+struct RevealPanel: View {
+    let reveal: RevealSummary
+    let beat: MatchViewModel.RevealBeat
+    let myPlayerId: String
+    let name: (String) -> String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TablePanel {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                if beat >= .hands {
+                    hands.transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    cup
+                }
+                if beat >= .verdict { verdict.transition(.opacity) }
+                if beat >= .outcome { outcome.transition(.opacity) }
             }
         }
-        .padding(10)
-        .background(.quaternary, in: .rect(cornerRadius: 8))
+        .motion(Theme.Motion.settle, reduced: reduceMotion, value: beat)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(name(reveal.challengerId)) called dudo")
+                .font(.system(.title3, design: .serif, weight: .semibold))
+            HStack(spacing: 6) {
+                Text("on \(name(reveal.bidderId))'s")
+                    .foregroundStyle(Theme.inkSoft)
+                BidChip(bid: reveal.bid)
+            }
+            .font(.subheadline)
+            if !reveal.wildOnes {
+                Text("Ones are not wild this round")
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSoft)
+            }
+        }
+    }
+
+    private var cup: some View {
+        HStack {
+            Spacer()
+            Cup(size: 110, lift: reduceMotion ? 1 : (beat >= .hands ? 1 : 0))
+                .animation(reduceMotion ? nil : Theme.Motion.cupLift, value: beat)
+            Spacer()
+        }
+        .frame(height: 120)
+    }
+
+    private var hands: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(reveal.hands.keys.sorted(), id: \.self) { playerId in
+                HStack(spacing: 10) {
+                    Text(name(playerId))
+                        .font(.caption)
+                        .foregroundStyle(playerId == myPlayerId ? Theme.ink : Theme.inkSoft)
+                        .frame(width: 74, alignment: .leading)
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        ForEach(Array((reveal.hands[playerId] ?? []).enumerated()), id: \.offset) {
+                            _, face in
+                            DieView(face: face, size: 30, counting: beat >= .counting && counts(face))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var verdict: some View {
+        HStack(spacing: 8) {
+            Text("\(reveal.actualCount)")
+                .font(.system(.title, design: .serif, weight: .bold))
+                .monospacedDigit()
+            Text("×")
+                .foregroundStyle(Theme.inkSoft)
+            DieView(face: reveal.bid.face, size: 28)
+            Text("against a bid of \(reveal.bid.quantity)")
+                .foregroundStyle(Theme.inkSoft)
+            Spacer()
+            Text(reveal.bidStands ? "Good bid" : "A lie")
+                .font(.headline)
+                .foregroundStyle(reveal.bidStands ? Theme.good : Theme.alarm)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(reveal.bid.face.spoken(count: reveal.actualCount)) against a bid of \(reveal.bid.quantity). "
+                + (reveal.bidStands ? "The bid was good." : "The bid was a lie.")
+        )
+    }
+
+    private var outcome: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(
+                "\(name(reveal.loserId)) loses a die — \(reveal.loserDiceCount) left",
+                systemImage: "minus.circle.fill"
+            )
+            .foregroundStyle(Theme.alarm)
+            if let eliminated = reveal.eliminatedId {
+                Label("\(name(eliminated)) is out", systemImage: "xmark.circle.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Theme.alarm)
+            }
+        }
+        .font(.subheadline)
+    }
+
+    /// R-07: a wild one counts toward the bid face, but a bid on ones counts only ones.
+    private func counts(_ face: Face) -> Bool {
+        if face == reveal.bid.face { return true }
+        return reveal.wildOnes && reveal.bid.face != .one && face == .one
     }
 }
 
 struct WinnerPanel: View {
-    let winnerId: String
+    let name: String
     let iWon: Bool
     let leave: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text(iWon ? "You win." : "\(winnerId) wins.")
-                .font(.title2.bold())
-            Button("Back to the lobby", action: leave)
-                .buttonStyle(.borderedProminent)
+        TablePanel(tint: iWon ? Theme.brass : .black) {
+            VStack(spacing: 14) {
+                Image(systemName: iWon ? "crown.fill" : "flag.checkered")
+                    .font(.system(size: 40))
+                    .foregroundStyle(iWon ? Theme.brass : Theme.inkSoft)
+                Text(iWon ? "You win." : "\(name) wins.")
+                    .font(.system(.title, design: .serif, weight: .bold))
+                Button("Back to the lobby", action: leave)
+                    .buttonStyle(TableButton(tint: Theme.brass))
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.quaternary, in: .rect(cornerRadius: 8))
     }
 }

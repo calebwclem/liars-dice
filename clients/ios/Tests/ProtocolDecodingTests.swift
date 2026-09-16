@@ -61,7 +61,7 @@ final class ProtocolDecodingTests: XCTestCase {
         }
         // Every event renders to something showable, so the feed cannot crash on a variant.
         for event in events {
-            XCTAssertFalse(event.summary.isEmpty)
+            XCTAssertFalse(event.summary().isEmpty)
         }
     }
 

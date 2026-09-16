@@ -1,26 +1,38 @@
 import SwiftUI
 
-/// Picks the screen. Every branch is a stage the session can actually be in, so an unhandled
-/// state is a compile error rather than a blank view.
+/// Picks the screen. Every branch is a stage the session can actually be in, so an unhandled state
+/// is a compile error rather than a blank view.
 ///
-/// Swift note: `some View` is an opaque return type — "a view, and the compiler knows which one,
-/// but the caller does not have to". It is how SwiftUI avoids type-erasing every hierarchy.
+/// The states that are not "playing" matter more than they look. A player meets the connecting
+/// state, the empty queue and the reconnection banner on their worst day — the day the network is
+/// bad — and those are the screens that decide whether they come back.
 struct RootView: View {
     let session: GameSession
+    var preferences = Preferences()
+
+    @State private var showOnboarding = false
 
     var body: some View {
-        NavigationStack {
+        ZStack {
+            FeltBackground()
             content
-                .navigationTitle("Liar's Dice")
-                .toolbar {
-                    if session.reconnecting {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Label("Reconnecting", systemImage: "arrow.triangle.2.circlepath")
-                                .labelStyle(.titleAndIcon)
-                                .font(.caption)
-                        }
-                    }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if session.reconnecting {
+                ReconnectingBanner()
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .foregroundStyle(Theme.ink)
+        .animation(.snappy, value: session.reconnecting)
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView {
+                preferences.hasSeenOnboarding = true
+                showOnboarding = false
+            }
+        }
+        .onAppear {
+            showOnboarding = !preferences.hasSeenOnboarding
+            Haptics.shared.warmUp()
         }
     }
 
@@ -28,10 +40,16 @@ struct RootView: View {
     private var content: some View {
         switch session.stage {
         case .idle, .connecting:
-            ProgressView("Connecting…")
+            TableMessage(
+                symbol: "dice.fill",
+                title: "Shaking the cups…",
+                detail: "Connecting to the table."
+            ) {
+                ProgressView().tint(Theme.brass)
+            }
 
         case .lobby:
-            LobbyView(session: session)
+            LobbyView(session: session, showRules: { showOnboarding = true })
 
         case .queued(let waiting, let target, let backfillInMs):
             QueueView(
@@ -45,48 +63,129 @@ struct RootView: View {
             if let match = session.match {
                 MatchView(match: match, leave: { session.leaveMatch() })
             } else {
-                ProgressView("Dealing…")
+                TableMessage(
+                    symbol: "dice.fill",
+                    title: "Dealing…",
+                    detail: "Waiting for the first roll."
+                ) {
+                    ProgressView().tint(Theme.brass)
+                }
             }
 
         case .needsUpdate(let serverVersion):
-            VStack(spacing: 12) {
-                Text("Update needed").font(.headline)
-                Text("This build speaks protocol \(protocolVersion); the server speaks \(serverVersion).")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-            }
-            .padding()
+            TableMessage(
+                symbol: "arrow.down.circle.fill",
+                title: "Time to update",
+                detail: """
+                    This build speaks protocol \(protocolVersion) and the table speaks \
+                    \(serverVersion). Update the app to play.
+                    """
+            ) { EmptyView() }
 
         case .failed(let reason):
-            VStack(spacing: 12) {
-                Text("Cannot reach the server").font(.headline)
-                Text(reason).font(.caption).foregroundStyle(.secondary)
+            TableMessage(
+                symbol: "wifi.exclamationmark",
+                title: "Cannot reach the table",
+                detail: reason
+            ) {
                 Button("Try again") { Task { await session.connect() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.brass)
             }
-            .padding()
         }
+    }
+}
+
+/// The shape every non-playing screen takes: a symbol, a sentence, and at most one thing to do.
+struct TableMessage<Action: View>: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    @ViewBuilder var action: Action
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: symbol)
+                .font(.system(size: 44))
+                .foregroundStyle(Theme.brass)
+            Text(title)
+                .font(.system(.title2, design: .serif, weight: .semibold))
+            Text(detail)
+                .font(.callout)
+                .foregroundStyle(Theme.inkSoft)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            action
+                .padding(.top, 4)
+        }
+        .padding(32)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// R-18 made visible. The server holds a seat for 45 seconds, so the honest thing to show is that
+/// we are trying — not an error, and not nothing at all.
+struct ReconnectingBanner: View {
+    var body: some View {
+        VStack {
+            HStack(spacing: 8) {
+                ProgressView().tint(Theme.ink).controlSize(.small)
+                Text("Reconnecting — your seat is held for a moment")
+                    .font(.footnote)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Theme.leather.opacity(0.95), in: .capsule)
+            .overlay(Capsule().strokeBorder(.white.opacity(0.12)))
+            .padding(.top, 8)
+            Spacer()
+        }
+        .accessibilityAddTraits(.updatesFrequently)
     }
 }
 
 struct LobbyView: View {
     let session: GameSession
+    let showRules: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Ready to play").font(.title2)
-            if let playerId = session.playerId {
-                Text("You are \(playerId)").font(.caption).foregroundStyle(.secondary)
+        VStack(spacing: 22) {
+            VStack(spacing: 6) {
+                Image(systemName: "dice.fill")
+                    .font(.system(size: 52))
+                    .foregroundStyle(Theme.brass)
+                Text("Liar's Dice")
+                    .font(.system(size: 38, design: .serif).weight(.bold))
             }
+
+            Text("Five dice each. Everyone bids on what the whole table is hiding.")
+                .font(.callout)
+                .foregroundStyle(Theme.inkSoft)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 36)
+
             Button("Find a match") { session.findMatch() }
                 .buttonStyle(.borderedProminent)
+                .tint(Theme.brass)
+                .controlSize(.large)
+
+            Button("How to play", action: showRules)
+                .font(.footnote)
+                .foregroundStyle(Theme.inkSoft)
+
             if let error = session.lastError {
-                Text(error.readable).font(.caption).foregroundStyle(.red)
+                Label(error.readable, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Theme.alarm)
+                    .padding(.top, 4)
             }
         }
         .padding()
     }
 }
 
+/// The empty state that gets seen most: waiting for a table to fill.
 struct QueueView: View {
     let waiting: Int
     let target: Int
@@ -94,14 +193,33 @@ struct QueueView: View {
     let cancel: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Waiting for players — \(waiting) of \(target)")
+        VStack(spacing: 18) {
+            // Seats filling up, drawn rather than described.
+            HStack(spacing: 10) {
+                ForEach(0..<target, id: \.self) { index in
+                    Circle()
+                        .fill(index < waiting ? Theme.brass : .white.opacity(0.12))
+                        .frame(width: 14, height: 14)
+                }
+            }
+            .accessibilityLabel("\(waiting) of \(target) seats filled")
+
+            Text("Waiting for players")
+                .font(.system(.title2, design: .serif, weight: .semibold))
+            Text("\(waiting) of \(target) seats filled")
+                .font(.callout)
+                .foregroundStyle(Theme.inkSoft)
             // PLAN.md: a short queue is topped up with bots rather than left hanging.
-            Text("Bots fill in after \(backfillInMs / 1000)s")
+            Text("Bots sit in after \(max(1, backfillInMs / 1000))s so you are not left waiting.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
-            Button("Cancel", role: .cancel, action: cancel)
+                .foregroundStyle(Theme.inkSoft)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Button("Leave the queue", role: .cancel, action: cancel)
+                .font(.footnote)
+                .foregroundStyle(Theme.inkSoft)
+                .padding(.top, 6)
         }
         .padding()
     }

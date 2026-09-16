@@ -25,12 +25,6 @@ export const ControlReasonSchema = z.enum([
 ]);
 
 export const ServerEventSchema = z.discriminatedUnion('type', [
-  /** R-16: whose turn it is and how long they have. Sent with every turn change. */
-  z.strictObject({
-    type: z.literal('turnStarted'),
-    playerId,
-    turnMs: z.number().int().positive(),
-  }),
   /** R-17: the turn ran out. `autoBid` is the raise the server played for them. */
   z.strictObject({
     type: z.literal('playerTimedOut'),

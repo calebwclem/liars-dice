@@ -131,6 +131,7 @@
           "totalDiceInPlay": 20
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -279,6 +280,7 @@
           "totalDiceInPlay": 20
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -406,6 +408,7 @@
           "totalDiceInPlay": 20
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -630,6 +633,7 @@
           "totalDiceInPlay": 19
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -790,6 +794,7 @@
           "totalDiceInPlay": 19
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -943,6 +948,7 @@
           "totalDiceInPlay": 19
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -1095,6 +1101,7 @@
           "totalDiceInPlay": 19
         },
         "turnEndsInMs": 29000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -1259,6 +1266,7 @@
           "totalDiceInPlay": 19
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -1430,6 +1438,7 @@
           "totalDiceInPlay": 19
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -1680,6 +1689,7 @@
           "totalDiceInPlay": 18
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -1838,6 +1848,7 @@
           "totalDiceInPlay": 18
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -2028,6 +2039,7 @@
           "totalDiceInPlay": 18
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -2240,6 +2252,7 @@
           "totalDiceInPlay": 17
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -2397,6 +2410,7 @@
           "totalDiceInPlay": 17
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -2558,6 +2572,7 @@
           "totalDiceInPlay": 17
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -2768,6 +2783,7 @@
           "totalDiceInPlay": 16
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -2924,6 +2940,7 @@
           "totalDiceInPlay": 16
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -3084,6 +3101,7 @@
           "totalDiceInPlay": 16
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -3251,6 +3269,7 @@
           "totalDiceInPlay": 16
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -3453,6 +3472,7 @@
           "totalDiceInPlay": 16
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -3675,6 +3695,7 @@
           "totalDiceInPlay": 15
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -3830,6 +3851,7 @@
           "totalDiceInPlay": 15
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -3989,6 +4011,7 @@
           "totalDiceInPlay": 15
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -4155,6 +4178,7 @@
           "totalDiceInPlay": 15
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -4368,6 +4392,7 @@
           "totalDiceInPlay": 14
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -4522,6 +4547,7 @@
           "totalDiceInPlay": 14
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -4680,6 +4706,7 @@
           "totalDiceInPlay": 14
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -4912,6 +4939,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -5064,6 +5092,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -5248,6 +5277,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -5411,6 +5441,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -5581,6 +5612,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -5758,6 +5790,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -5970,6 +6003,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -6161,6 +6195,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -6359,6 +6394,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -6564,6 +6600,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -6804,6 +6841,7 @@
           "totalDiceInPlay": 13
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -7061,6 +7099,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -7211,6 +7250,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -7393,6 +7433,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -7554,6 +7595,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -7722,6 +7764,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -7897,6 +7940,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -8107,6 +8151,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -8296,6 +8341,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -8492,6 +8538,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -8695,6 +8742,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -8933,6 +8981,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -9150,6 +9199,7 @@
           "totalDiceInPlay": 12
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -9411,6 +9461,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -9560,6 +9611,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -9713,6 +9765,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -9873,6 +9926,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -10068,6 +10122,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -10242,6 +10297,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -10423,6 +10479,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -10611,6 +10668,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -10834,6 +10892,7 @@
           "totalDiceInPlay": 11
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -11072,6 +11131,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -11220,6 +11280,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -11372,6 +11433,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -11531,6 +11593,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -11697,6 +11760,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -11898,6 +11962,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -12078,6 +12143,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -12265,6 +12331,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -12459,6 +12526,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -12688,6 +12756,7 @@
           "totalDiceInPlay": 10
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -12935,6 +13004,7 @@
           "totalDiceInPlay": 9
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -13081,6 +13151,7 @@
           "totalDiceInPlay": 9
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -13259,6 +13330,7 @@
           "totalDiceInPlay": 9
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -13416,6 +13488,7 @@
           "totalDiceInPlay": 9
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -13618,6 +13691,7 @@
           "totalDiceInPlay": 8
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -13763,6 +13837,7 @@
           "totalDiceInPlay": 8
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -13912,6 +13987,7 @@
           "totalDiceInPlay": 8
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -14068,6 +14144,7 @@
           "totalDiceInPlay": 8
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -14259,6 +14336,7 @@
           "totalDiceInPlay": 8
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -14429,6 +14507,7 @@
           "totalDiceInPlay": 8
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -14606,6 +14685,7 @@
           "totalDiceInPlay": 8
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -14827,6 +14907,7 @@
           "totalDiceInPlay": 7
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -14970,6 +15051,7 @@
           "totalDiceInPlay": 7
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -15118,6 +15200,7 @@
           "totalDiceInPlay": 7
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -15301,6 +15384,7 @@
           "totalDiceInPlay": 7
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -15495,6 +15579,7 @@
           "totalDiceInPlay": 6
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -15635,6 +15720,7 @@
           "totalDiceInPlay": 6
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -15780,6 +15866,7 @@
           "totalDiceInPlay": 6
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -15932,6 +16019,7 @@
           "totalDiceInPlay": 6
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -16119,6 +16207,7 @@
           "totalDiceInPlay": 6
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -16318,6 +16407,7 @@
           "totalDiceInPlay": 5
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -16456,6 +16546,7 @@
           "totalDiceInPlay": 5
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -16600,6 +16691,7 @@
           "totalDiceInPlay": 5
         },
         "turnEndsInMs": 30000,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",
@@ -16812,6 +16904,7 @@
           "totalDiceInPlay": 4
         },
         "turnEndsInMs": null,
+        "turnMs": 30000,
         "seats": [
           {
             "playerId": "p1",

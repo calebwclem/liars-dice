@@ -108,6 +108,11 @@ export const SeatStatusSchema = z.strictObject({
 export const MatchSnapshotSchema = z.strictObject({
   view: PlayerViewSchema,
   turnEndsInMs: z.number().int().nonnegative().nullable(),
+  /**
+   * R-16's full turn length. Constant for a match, but a client needs it as well as the
+   * remaining time: a countdown ring cannot draw a fraction without knowing what a whole is.
+   */
+  turnMs: z.number().int().positive(),
   seats: z.array(SeatStatusSchema),
   /** Present only when it is this recipient's turn to act. */
   bidOptions: BidOptionsSchema.nullable(),

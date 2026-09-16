@@ -274,6 +274,7 @@ final class SessionFlowTests: XCTestCase {
                         totalDiceInPlay: 10
                     ),
                     turnEndsInMs: 30_000,
+                    turnMs: 30_000,
                     seats: [
                         SeatStatus(playerId: "me", seat: 0, connected: true, control: .human, controlReason: nil),
                         SeatStatus(playerId: "them", seat: 1, connected: true, control: .human, controlReason: nil),

@@ -1,20 +1,11 @@
 import Foundation
 
 /// Presentation helpers. No rules — just how to say things out loud.
+///
+/// Note what is deliberately *not* here: the Unicode die faces (⚀–⚅). They are missing from the
+/// system font and render as a placeholder box on device, which is how "Revealed: 4 × ▫" reached a
+/// screenshot. Dice are drawn now (`DieView`); text says the face in words.
 extension Face {
-    /// The Unicode die face. Phase 4 replaces these with drawn dice; for now they are legible
-    /// and cost nothing.
-    var glyph: String {
-        switch self {
-        case .one: "⚀"
-        case .two: "⚁"
-        case .three: "⚂"
-        case .four: "⚃"
-        case .five: "⚄"
-        case .six: "⚅"
-        }
-    }
-
     var spoken: String {
         switch self {
         case .one: "ones"
@@ -25,55 +16,86 @@ extension Face {
         case .six: "sixes"
         }
     }
+
+    /// Singular, for "a four" rather than "a fours".
+    var spokenSingular: String { String(spoken.dropLast()) }
+
+    /// "1 four", "4 fours". English is the one thing here with no test in packages/engine.
+    func spoken(count: Int) -> String {
+        "\(count) \(count == 1 ? spokenSingular : spoken)"
+    }
 }
 
 extension Bid {
-    /// "4 × ⚄" — compact enough for a bid history row.
-    var short: String { "\(quantity) × \(face.glyph)" }
+    var spoken: String { face.spoken(count: quantity) }
+}
 
-    var spoken: String { "\(quantity) \(face.spoken)" }
+/// How to refer to people in the event feed.
+///
+/// Two jobs, both learned from a real device. A guest id is a UUID, and a feed full of them wraps
+/// across the screen while telling the reader nothing. And "You loses a die" is what happens when
+/// third-person copy meets a second-person name, so the verb has to agree.
+struct EventNaming {
+    var name: (String) -> String = { $0 }
+    var isMe: (String) -> Bool = { _ in false }
+
+    /// "Dana bids" / "You bid".
+    func subject(_ playerId: String, _ third: String, _ second: String) -> String {
+        "\(name(playerId)) \(isMe(playerId) ? second : third)"
+    }
+
+    /// "Dana's" / "your".
+    func possessive(_ playerId: String) -> String {
+        isMe(playerId) ? "your" : "\(name(playerId))'s"
+    }
+
+    /// Ids as-is, third person. For tests and anywhere without a player.
+    ///
+    /// Computed rather than a stored `static let`: this type holds closures, which are not
+    /// `Sendable`, and a stored global of a non-Sendable type is a concurrency error under
+    /// Swift 6. A fresh value per call is free and sidesteps it.
+    static var plain: EventNaming { EventNaming() }
 }
 
 extension ProtocolEvent {
-    /// A one-line description for the event feed. Deliberately plain: Phase 4 turns these into
-    /// animations, and until then reading them is how you tell the client is keeping up.
-    var summary: String {
+    /// A one-line description for the event feed.
+    func summary(_ naming: EventNaming = .plain) -> String {
         switch self {
         case .matchStarted(let event):
             "Match started — \(event.playerIds.count) players, \(event.startingDice) dice each"
         case .roundStarted(let event):
             event.palifico
-                ? "Round \(event.index + 1): PALIFICO, \(event.starterId) opens"
-                : "Round \(event.index + 1): \(event.starterId) opens"
+                ? "Round \(event.index + 1): PALIFICO, \(naming.name(event.starterId)) opens"
+                : "Round \(event.index + 1): \(naming.name(event.starterId)) opens"
         case .bidMade(let event):
-            "\(event.playerId) bids \(event.bid.spoken)"
+            "\(naming.subject(event.playerId, "bids", "bid")) \(event.bid.spoken)"
         case .dudoCalled(let event):
-            "\(event.playerId) calls dudo on \(event.bidderId)'s \(event.bid.spoken)"
+            "\(naming.subject(event.playerId, "calls", "call")) dudo on "
+                + "\(naming.possessive(event.bidderId)) \(event.bid.spoken)"
         case .diceRevealed(let event):
-            "Revealed: \(event.reveal.actualCount) × \(event.reveal.bid.face.glyph)"
-                + (event.reveal.bidStands ? " — the bid was good" : " — the bid was a lie")
+            "Revealed: \(event.reveal.bid.face.spoken(count: event.reveal.actualCount)) — "
+                + (event.reveal.bidStands ? "the bid was good" : "the bid was a lie")
         case .dieLost(let event):
-            "\(event.playerId) loses a die — \(event.diceCount) left"
+            "\(naming.subject(event.playerId, "loses", "lose")) a die — \(event.diceCount) left"
         case .playerEliminated(let event):
-            "\(event.playerId) is out"
+            naming.subject(event.playerId, "is out", "are out")
         case .palificoArmed(let event):
-            "\(event.playerId) is down to one die — next round is palifico"
+            "\(naming.subject(event.playerId, "is", "are")) down to one die — "
+                + "next round is palifico"
         case .matchEnded(let event):
-            "\(event.winnerId) wins"
-        case .turnStarted(let event):
-            "\(event.playerId) to act"
+            naming.subject(event.winnerId, "wins", "win")
         case .playerTimedOut(let event):
             event.autoBid == nil
-                ? "\(event.playerId) timed out again"
-                : "\(event.playerId) ran out of time — auto-bid played"
+                ? "\(naming.name(event.playerId)) ran out of time again"
+                : "\(naming.name(event.playerId)) ran out of time — a minimum raise was played"
         case .playerDisconnected(let event):
-            "\(event.playerId) disconnected"
+            naming.subject(event.playerId, "disconnected", "disconnected")
         case .playerReconnected(let event):
-            "\(event.playerId) is back"
+            naming.subject(event.playerId, "is back", "are back")
         case .botTookOver(let event):
-            "A bot is playing \(event.playerId)'s seat (\(event.reason.rawValue))"
+            "A bot is playing \(naming.possessive(event.playerId)) seat (\(event.reason.rawValue))"
         case .controlReturned(let event):
-            "\(event.playerId) has their seat back"
+            "\(naming.subject(event.playerId, "has", "have")) the seat back"
         case .matchAbandoned:
             "Match abandoned — everyone left"
         }
@@ -95,6 +117,7 @@ extension ErrorCode {
         case .matchEnded: "The match is over."
         case .seatNotYours: "A bot is playing your seat."
         case .rateLimited: "Slow down a moment."
+        case .unknownMatch, .notInMatch: "That match has finished."
         default: "The server refused that: \(rawValue)"
         }
     }
