@@ -64,9 +64,7 @@ extension ProtocolEvent {
         case .matchStarted(let event):
             "Match started — \(event.playerIds.count) players, \(event.startingDice) dice each"
         case .roundStarted(let event):
-            event.palifico
-                ? "Round \(event.index + 1): PALIFICO, \(naming.name(event.starterId)) opens"
-                : "Round \(event.index + 1): \(naming.name(event.starterId)) opens"
+            "Round \(event.index + 1): \(naming.name(event.starterId)) opens"
         case .bidMade(let event):
             "\(naming.subject(event.playerId, "bids", "bid")) \(event.bid.spoken)"
         case .dudoCalled(let event):
@@ -79,9 +77,6 @@ extension ProtocolEvent {
             "\(naming.subject(event.playerId, "loses", "lose")) a die — \(event.diceCount) left"
         case .playerEliminated(let event):
             naming.subject(event.playerId, "is out", "are out")
-        case .palificoArmed(let event):
-            "\(naming.subject(event.playerId, "is", "are")) down to one die — "
-                + "next round is palifico"
         case .matchEnded(let event):
             naming.subject(event.winnerId, "wins", "win")
         case .playerTimedOut(let event):
@@ -110,7 +105,6 @@ extension ErrorCode {
         case .bidExceedsDiceInPlay: "There are not that many dice on the table."
         case .bidQuantityInvalid: "That is not a valid quantity."
         case .bidFaceInvalid: "That is not a valid face."
-        case .palificoFaceLocked: "The face is locked for this palifico round."
         case .openingBidRequired: "You open the round, so you have to bid."
         case .notYourTurn: "It is not your turn."
         case .playerEliminated: "You are out of this match."

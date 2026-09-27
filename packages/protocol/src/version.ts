@@ -9,7 +9,15 @@
  * client tolerates additions in practice; the version gate is what makes that a decision
  * rather than an accident.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
-/** The oldest client version this server still accepts. */
-export const MIN_PROTOCOL_VERSION = 1;
+/**
+ * The oldest client version this server still accepts.
+ *
+ * Raised to 2 with the palifico removal (R-13). That change *dropped* fields rather than
+ * adding them — `round.palifico`, `round.lockedFace`, `player.palificoUsed`,
+ * `reveal.wildOnes`, the `palificoArmed` event, the `PALIFICO_FACE_LOCKED` error — and a
+ * v1 client decoding a v2 snapshot would find them missing, not merely unfamiliar. There
+ * is nothing shipped to be compatible with yet, so the gate simply refuses v1.
+ */
+export const MIN_PROTOCOL_VERSION = 2;

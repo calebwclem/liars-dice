@@ -66,7 +66,6 @@ export function createMatch(setup: MatchSetup, ctx: Ctx): Result<Transition> {
     id,
     seat,
     diceCount: config.startingDice,
-    palificoUsed: false,
   }));
   const [firstSeat] = players;
   if (firstSeat === undefined) return err('INVALID_PLAYER_COUNT');
@@ -77,10 +76,9 @@ export function createMatch(setup: MatchSetup, ctx: Ctx): Result<Transition> {
     matchId,
     config,
     players,
-    round: { index: 0, palifico: false, starterId, hands, bids: [] },
+    round: { index: 0, starterId, hands, bids: [] },
     phase: { kind: 'bidding', turnId: starterId },
     lastReveal: null,
-    palificoNextFor: null,
     seq: 0,
     startedAt: ctx.now,
     endedAt: null,
@@ -94,7 +92,6 @@ export function createMatch(setup: MatchSetup, ctx: Ctx): Result<Transition> {
         type: 'roundStarted',
         index: 0,
         starterId,
-        palifico: false,
         diceCounts: diceCountsOf(players),
       },
     ],

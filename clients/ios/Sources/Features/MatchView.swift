@@ -58,24 +58,19 @@ struct MatchView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Round \(match.roundNumber)")
                     .font(.system(.title2, design: .serif, weight: .semibold))
-                // R-07 stated even when it is not in question. A player who only ever sees
-                // "ones are not wild" during palifico reads it as a fact about the game rather
-                // than about this round; the contrast is what makes the badge legible.
+                // R-07 stated plainly, because it is the one rule a new player most needs and
+                // the one this variant is most often played without (R-13, docs/DECISIONS.md).
                 Text(diceInPlayLine)
                     .font(.caption)
                     .foregroundStyle(Theme.inkSoft)
             }
             Spacer()
-            if match.isPalifico {
-                PalificoBadge(lockedFace: match.lockedFace)
-            }
         }
     }
 
     private var diceInPlayLine: String {
         let dice = match.totalDiceInPlay == 1 ? "1 die in play" : "\(match.totalDiceInPlay) dice in play"
-        // During palifico the badge carries the wildness rule, so do not say it twice.
-        return match.isPalifico ? dice : dice + " · ones are wild"
+        return dice + " · ones are wild"
     }
 
     // MARK: - Seats
@@ -112,8 +107,7 @@ struct MatchView: View {
                     dice: match.myDice,
                     size: 46,
                     rollToken: match.rollToken,
-                    countingFace: match.revealBeat >= .counting ? match.revealOnShow?.bid.face : nil,
-                    wildOnes: match.revealOnShow?.wildOnes ?? false
+                    countingFace: match.revealBeat >= .counting ? match.revealOnShow?.bid.face : nil
                 )
             }
         }
@@ -348,36 +342,6 @@ private struct BidChip: View {
     }
 }
 
-private struct PalificoBadge: View {
-    let lockedFace: Face?
-
-    private var subtitle: String {
-        // `guard let x` with no `= x` rebinds the optional to a non-optional of the same name for
-        // the rest of the scope — Swift's answer to the `if (x != null)` narrowing you get in Java.
-        guard let lockedFace else { return "this round, ones are not wild" }
-        return "this round, ones are not wild · \(lockedFace.spoken) only"
-    }
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text("PALIFICO")
-                .font(.caption.bold())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Theme.brass.opacity(0.35), in: .capsule)
-            // R-13, said as a situation rather than as a rule number. "This round" is the
-            // load-bearing half: the player has just spent sixteen rounds with wild ones and
-            // nothing else on screen says the suspension is temporary. The locked face is named
-            // rather than described — "face locked" does not tell you which face.
-            Text(subtitle)
-                .font(.caption2)
-                .foregroundStyle(Theme.inkSoft)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Palifico round. \(subtitle).")
-    }
-}
-
 private struct TableButton: ButtonStyle {
     let tint: Color
     @Environment(\.isEnabled) private var isEnabled
@@ -432,11 +396,6 @@ struct RevealPanel: View {
                 BidChip(bid: reveal.bid)
             }
             .font(.subheadline)
-            if !reveal.wildOnes {
-                Text("Ones are not wild this round")
-                    .font(.caption)
-                    .foregroundStyle(Theme.inkSoft)
-            }
         }
     }
 
@@ -511,7 +470,7 @@ struct RevealPanel: View {
     /// R-07: a wild one counts toward the bid face, but a bid on ones counts only ones.
     private func counts(_ face: Face) -> Bool {
         if face == reveal.bid.face { return true }
-        return reveal.wildOnes && reveal.bid.face != .one && face == .one
+        return reveal.bid.face != .one && face == .one
     }
 }
 

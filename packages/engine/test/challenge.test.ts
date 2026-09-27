@@ -19,8 +19,8 @@ const dudo = (state: GameState, playerId = 'b') =>
 describe('R-10 dudo', () => {
   test('R-10: when the bid was good the challenger loses one die', () => {
     // Three 4s are on the table (two real, one wild one) against a bid of three.
-    // b holds three dice, so losing one does not drop them to 1 and arm palifico —
-    // that interaction gets its own test in palifico.test.ts.
+    // b holds three dice. What happens on the way down to one is last-die.test.ts's business
+    // (R-13: nothing happens); this is only about the die itself changing hands.
     const state = standoff({ a: [4, 4], b: [1, 6, 6], c: [2, 3] }, 3, 4);
     const { state: next, events } = dudo(state);
     const reveal = next.lastReveal!;
@@ -67,7 +67,6 @@ describe('R-10 dudo', () => {
       challengerId: 'b',
       bidderId: 'a',
       bid: bid(3, 4),
-      wildOnes: true,
       eliminatedId: null,
       loserDiceCount: 1,
     });
@@ -122,7 +121,7 @@ describe('R-10 dudo', () => {
     });
     const withGhost: GameState = {
       ...state,
-      players: [...state.players, { id: 'c', seat: 2, diceCount: 0, palificoUsed: false }],
+      players: [...state.players, { id: 'c', seat: 2, diceCount: 0 }],
     };
     expectErr(reduce(withGhost, { type: 'dudo', playerId: 'c' }, ctx()), 'PLAYER_ELIMINATED');
     expectErr(

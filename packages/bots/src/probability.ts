@@ -13,12 +13,11 @@
 /**
  * The chance one unseen die matches `face`.
  *
- * R-07: when ones are wild a die matches if it shows the face *or* a one — two of six. A bid on
- * ones is the exception, since a one only ever counts as a one. During a palifico round (R-13)
- * nothing is wild and every face is one in six.
+ * R-07: ones are wild, so a die matches if it shows the face *or* a one — two of six. A bid on
+ * ones is the one exception, since a one only ever counts as a one. R-13 removes the round that
+ * used to suspend all of this, so there is no longer a flag to pass.
  */
-export function matchChance(face: number, wildOnes: boolean): number {
-  if (!wildOnes) return 1 / 6;
+export function matchChance(face: number): number {
   return face === 1 ? 1 / 6 : 2 / 6;
 }
 

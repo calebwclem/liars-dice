@@ -73,21 +73,19 @@ export function decide(view: PlayerView, options: DecideOptions): Judgement | nu
   const playerId = me.id;
   const context = bidContextOfView(view);
   const raises = legalBidsIn(context);
-  const wildOnes = !view.round.palifico;
   const unseen = Math.max(0, view.totalDiceInPlay - me.dice.length);
 
   /** The chance a bid is true, given this hand and that many unseen dice. */
   const chance = (bid: Bid): number => {
-    const mine = me.dice.filter(
-      (die) => die === bid.face || (wildOnes && bid.face !== 1 && die === 1),
-    ).length;
-    return atLeast(unseen, matchChance(bid.face, wildOnes), bid.quantity - mine);
+    // R-07: a one in hand backs any face but ones themselves.
+    const mine = me.dice.filter((die) => die === bid.face || (bid.face !== 1 && die === 1)).length;
+    return atLeast(unseen, matchChance(bid.face), bid.quantity - mine);
   };
 
   const { standing } = context;
   const bluffing = options.rng() < options.profile.bluff;
 
-  // R-09's dead end: a maximal ones bid leaves no legal raise at all, so there is nothing to
+  // R-04's ceiling: at the cap on sixes there is no legal raise at all, so there is nothing to
   // decide. R-06 guarantees this cannot happen to the player opening a round.
   if (raises.length === 0) {
     return {
@@ -131,9 +129,9 @@ export function decide(view: PlayerView, options: DecideOptions): Judgement | nu
     // The honest read says challenge; bluff by raising anyway.
     //
     // The bluff is the *decision to raise*, not the choice of bid — so it still takes the likeliest
-    // raise available. Taking the cheapest one instead looks reasonable until R-09 is involved:
-    // leaving a bid of ones costs 2q+1, so the cheapest raise over "four ones" is nine of something,
-    // which nobody believes and everybody calls. A bluff has to be plausible or it is just a gift.
+    // raise available rather than the cheapest. They usually coincide now that R-09 is gone, but
+    // not over a bid on ones: the weakest raise there is one more one, and ones are the one face a
+    // wild one does not help. A bluff has to be plausible or it is just a gift.
     return {
       action: { type: 'bid', playerId, bid: best.bid },
       standingChance,

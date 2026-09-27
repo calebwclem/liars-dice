@@ -9,7 +9,7 @@
  * pruning it means a future edit cannot accidentally leave a foreign hand behind.
  */
 import type { GameState, PlayerId, PlayerView, PublicPlayer } from './types.ts';
-import { lockedFace, playerById, totalDiceInPlay } from './query.ts';
+import { playerById, totalDiceInPlay } from './query.ts';
 
 export function redactFor(state: GameState, playerId: PlayerId): PlayerView {
   const self = playerById(state, playerId);
@@ -18,7 +18,6 @@ export function redactFor(state: GameState, playerId: PlayerId): PlayerView {
     seat: p.seat,
     diceCount: p.diceCount,
     eliminated: p.diceCount === 0,
-    palificoUsed: p.palificoUsed,
   }));
 
   return {
@@ -33,9 +32,7 @@ export function redactFor(state: GameState, playerId: PlayerId): PlayerView {
     phase: state.phase,
     round: {
       index: state.round.index,
-      palifico: state.round.palifico,
       starterId: state.round.starterId,
-      lockedFace: lockedFace(state),
       bids: state.round.bids,
     },
     // R-10: the one place hands are public. Present only after a challenge has resolved.

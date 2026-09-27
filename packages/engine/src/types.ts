@@ -37,8 +37,6 @@ export interface PlayerState {
   readonly seat: number;
   /** Dice owned, 0..maxDice. 0 means eliminated (R-12). */
   readonly diceCount: number;
-  /** R-13: a player may trigger palifico only once per match. */
-  readonly palificoUsed: boolean;
 }
 
 export interface BidRecord {
@@ -49,9 +47,7 @@ export interface BidRecord {
 export interface RoundState {
   /** 0-based. */
   readonly index: number;
-  /** R-13. When true: ones are not wild, the face is locked by the opening bid. */
-  readonly palifico: boolean;
-  /** R-05 / R-13 / R-14 / R-15: who made (or must make) the opening bid. */
+  /** R-05 / R-14 / R-15: who made (or must make) the opening bid. */
   readonly starterId: PlayerId;
   /**
    * R-03: rolled secretly at round start. Full information — this is the field
@@ -84,8 +80,6 @@ export interface RevealSummary {
   readonly challengerId: PlayerId;
   readonly bidderId: PlayerId;
   readonly bid: Bid;
-  /** R-07 / R-13: whether ones counted as wild when tallying. */
-  readonly wildOnes: boolean;
   readonly actualCount: number;
   /** R-10: `actualCount >= bid.quantity`. True means the challenger was wrong. */
   readonly bidStands: boolean;
@@ -109,8 +103,6 @@ export interface GameState {
   readonly phase: Phase;
   /** The most recent reveal, or null before the first challenge. Public (R-10). */
   readonly lastReveal: RevealSummary | null;
-  /** R-13: armed when a player drops to 1 die; consumed by the next `advanceRound`. */
-  readonly palificoNextFor: PlayerId | null;
   /** Monotonic reduce counter. PLAN.md wants a sequence number for resync. */
   readonly seq: number;
   readonly startedAt: number;
@@ -127,7 +119,6 @@ export interface PublicPlayer {
   readonly seat: number;
   readonly diceCount: number;
   readonly eliminated: boolean;
-  readonly palificoUsed: boolean;
 }
 
 export interface PlayerView {
@@ -150,10 +141,7 @@ export interface PlayerView {
   readonly phase: Phase;
   readonly round: {
     readonly index: number;
-    readonly palifico: boolean;
     readonly starterId: PlayerId;
-    /** R-13: the face locked by the opening bid of a palifico round; null otherwise. */
-    readonly lockedFace: Face | null;
     readonly bids: readonly BidRecord[];
   };
   /** R-10: hands are public here, and nowhere else. */
@@ -187,7 +175,6 @@ export type GameEvent =
       readonly type: 'roundStarted';
       readonly index: number;
       readonly starterId: PlayerId;
-      readonly palifico: boolean;
       readonly diceCounts: Readonly<Record<PlayerId, number>>;
     }
   | { readonly type: 'bidMade'; readonly playerId: PlayerId; readonly bid: Bid }
@@ -200,7 +187,6 @@ export type GameEvent =
   | { readonly type: 'diceRevealed'; readonly reveal: RevealSummary }
   | { readonly type: 'dieLost'; readonly playerId: PlayerId; readonly diceCount: number }
   | { readonly type: 'playerEliminated'; readonly playerId: PlayerId }
-  | { readonly type: 'palificoArmed'; readonly playerId: PlayerId }
   | { readonly type: 'matchEnded'; readonly winnerId: PlayerId };
 
 /**
@@ -230,10 +216,8 @@ export type ErrorReason =
   | 'BID_EXCEEDS_DICE_IN_PLAY'
   /** R-02: not a face in 1..6. */
   | 'BID_FACE_INVALID'
-  /** R-08 / R-09: not a legal raise over the standing bid. */
+  /** R-08: not a legal raise over the standing bid. */
   | 'BID_TOO_LOW'
-  /** R-13: a palifico round's face is locked by its opening bid. */
-  | 'PALIFICO_FACE_LOCKED'
   /** R-06: the round's first player must bid; they cannot challenge. */
   | 'OPENING_BID_REQUIRED'
   /** R-01: a match needs 2 to 6 players with distinct ids. */

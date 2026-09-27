@@ -48,7 +48,6 @@ const DIM = `${ESC}[2m`;
 const RESET = `${ESC}[0m`;
 const GREEN = `${ESC}[32m`;
 const RED = `${ESC}[31m`;
-const YELLOW = `${ESC}[33m`;
 const CYAN = `${ESC}[36m`;
 
 const die = (face: Face): string => PIPS[face - 1] ?? String(face);
@@ -93,12 +92,9 @@ const seatNames = (count: number): readonly PlayerId[] => [
 function showTable(view: PlayerView): void {
   const turn = view.phase.kind === 'bidding' ? view.phase.turnId : null;
   say();
-  const palifico = view.round.palifico
-    ? ` ${YELLOW}${BOLD}PALIFICO${RESET}${DIM} — ones are not wild, the face is locked${RESET}`
-    : '';
   say(
     `${BOLD}Round ${String(view.round.index + 1)}${RESET}  ` +
-      `${DIM}${String(view.totalDiceInPlay)} dice in play${RESET}${palifico}`,
+      `${DIM}${String(view.totalDiceInPlay)} dice in play · ones are wild${RESET}`,
   );
   for (const player of view.players) {
     const marker = player.id === turn ? `${CYAN}▶${RESET}` : ' ';
@@ -122,12 +118,11 @@ function showTable(view: PlayerView): void {
 function showReveal(reveal: RevealSummary): void {
   say();
   say(`${BOLD}── Reveal ──${RESET}`);
-  const wildNote = reveal.wildOnes ? '' : `  ${DIM}(ones not wild)${RESET}`;
   const whose = conj(reveal.bidderId, `${reveal.bidderId}'s`, 'your');
-  say(`${reveal.challengerId} challenged ${whose} bid of ` + `${bidText(reveal.bid)}${wildNote}`);
+  say(`${reveal.challengerId} challenged ${whose} bid of ${bidText(reveal.bid)}`);
   for (const [playerId, dice] of Object.entries(reveal.hands)) {
     const marked = dice.map((d) => {
-      const counts = d === reveal.bid.face || (reveal.wildOnes && reveal.bid.face !== 1 && d === 1);
+      const counts = d === reveal.bid.face || (reveal.bid.face !== 1 && d === 1); // R-07
       return counts ? `${GREEN}${BOLD}${die(d)}${RESET}` : `${DIM}${die(d)}${RESET}`;
     });
     say(`  ${playerId.padEnd(6)} ${marked.join(' ')}`);
@@ -348,10 +343,6 @@ while (state.phase.kind !== 'ended') {
     if (event.type === 'dudoCalled') {
       const calls = conj(event.playerId, 'calls', 'call');
       say(`  ${BOLD}${event.playerId} ${calls}!${RESET}`);
-    }
-    if (event.type === 'palificoArmed') {
-      const is = conj(event.playerId, 'is', 'are');
-      say(`  ${YELLOW}${event.playerId} ${is} down to one die — next round is palifico${RESET}`);
     }
   }
   state = result.value.state;

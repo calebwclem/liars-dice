@@ -25,16 +25,12 @@ const HANDS: [readonly Face[], readonly Face[], readonly Face[], readonly Face[]
 ];
 
 /** A state where `a` has bid `standing` and it is `b`'s turn. */
-const after = (standing: Bid, palifico = false): GameState =>
-  fourPlayers(HANDS, { bids: [{ playerId: 'a', bid: standing }], turnId: 'b', palifico });
+const after = (standing: Bid): GameState =>
+  fourPlayers(HANDS, { bids: [{ playerId: 'a', bid: standing }], turnId: 'b' });
 
 /** Play `next` as b over the standing bid and report legality. */
-const raise = (standing: Bid, next: Bid, palifico = false): true | ErrorReason => {
-  const result = reduce(
-    after(standing, palifico),
-    { type: 'bid', playerId: 'b', bid: next },
-    ctx(),
-  );
+const raise = (standing: Bid, next: Bid): true | ErrorReason => {
+  const result = reduce(after(standing), { type: 'bid', playerId: 'b', bid: next }, ctx());
   return result.ok ? true : result.reason;
 };
 
@@ -42,7 +38,7 @@ describe('Bidding', () => {
   test('R-04: a bid counts every die still in play, not just the bidder’s', () => {
     const hands = { a: [2, 2] as Face[], b: [2] as Face[], c: [5] as Face[] };
     expect(totalDiceInPlay(makeState({ hands }))).toBe(4);
-    expect(countFace(hands, 2, false)).toBe(3);
+    expect(countFace(hands, 2)).toBe(3);
   });
 
   test('R-04: quantity must be a positive integer', () => {
@@ -137,19 +133,22 @@ describe('Bidding', () => {
 
   test('R-07: ones are wild, so a 1 counts toward any face', () => {
     const hands = { a: [1, 1, 4] as Face[], b: [4, 6] as Face[] };
-    expect(countFace(hands, 4, true)).toBe(4); // two 4s + two wild ones
-    expect(countFace(hands, 6, true)).toBe(3); // one 6 + two wild ones
+    expect(countFace(hands, 4)).toBe(4); // two 4s + two wild ones
+    expect(countFace(hands, 6)).toBe(3); // one 6 + two wild ones
   });
 
   test('R-07: a bid on ones counts only the ones themselves', () => {
     const hands = { a: [1, 1, 4] as Face[], b: [4, 6] as Face[] };
-    expect(countFace(hands, 1, true)).toBe(2);
+    expect(countFace(hands, 1)).toBe(2);
   });
 
-  test('R-07: with ones not wild (palifico) a 1 counts only as a one', () => {
+  test('R-07/R-13: no round ever switches wild ones off', () => {
+    // The palifico round used to. `countFace` no longer takes the question as a parameter,
+    // so there is nowhere left for a caller to turn it off — this test is the argument for
+    // why the parameter went rather than being defaulted to true.
     const hands = { a: [1, 1, 4] as Face[], b: [4, 6] as Face[] };
-    expect(countFace(hands, 4, false)).toBe(2);
-    expect(countFace(hands, 1, false)).toBe(2);
+    expect(countFace.length).toBe(2);
+    expect(countFace(hands, 4)).toBe(4);
   });
 });
 
@@ -290,8 +289,8 @@ describe('Bid legality from a redacted view', () => {
   test('R-04..R-09/R-13: a PlayerView answers exactly as the full state does', () => {
     // A client holds a PlayerView and may grey out an illegal button (CLAUDE.md). That is
     // only safe if the view-derived context gives the same answer as the server's, for
-    // every bid — including the quantity cap and the palifico face lock, which are the
-    // two places the view could plausibly fall short.
+    // every bid — including the quantity cap, which is now the only place the view could
+    // plausibly fall short, the face lock having gone with R-13.
     const { states } = playRandomMatch({ seed: 21, playerIds: ['a', 'b', 'c', 'd'] });
     let checked = 0;
     for (const state of states) {
@@ -311,21 +310,20 @@ describe('Bid legality from a redacted view', () => {
     expect(checked).toBeGreaterThan(1_000); // the sweep actually swept
   });
 
-  test('R-13: the view carries the locked face, so a client can enforce it too', () => {
+  test('R-13: the view carries no round modifier for a client to enforce', () => {
+    // A player on their last die. Everything a bid is judged against is the standing bid and
+    // the dice count, so the view and the full state agree by construction rather than by
+    // the view being careful to copy a flag across.
     const state = makeState({
-      hands: { a: [1, 2], b: [3, 4] },
-      palifico: true,
+      hands: { a: [1], b: [3, 4] },
       starterId: 'a',
       bids: [{ playerId: 'a', bid: bid(2, 3) }],
       turnId: 'b',
     });
     const ctxFromView = bidContextOfView(redactFor(state, 'b'));
-    expect(ctxFromView.lockedFace).toBe(3);
-    expect(ctxFromView.palifico).toBe(true);
-    expect(checkBidIn(ctxFromView, bid(3, 4))).toEqual({
-      ok: false,
-      reason: 'PALIFICO_FACE_LOCKED',
-    });
-    expect(checkBidIn(ctxFromView, bid(3, 3))).toEqual({ ok: true, value: true });
+    expect(Object.keys(ctxFromView).sort()).toEqual(['diceInPlay', 'standing']);
+    expect(ctxFromView).toEqual(bidContextOf(state));
+    expect(checkBidIn(ctxFromView, bid(3, 4))).toEqual({ ok: true, value: true });
+    expect(checkBidIn(ctxFromView, bid(2, 4))).toEqual({ ok: true, value: true });
   });
 });

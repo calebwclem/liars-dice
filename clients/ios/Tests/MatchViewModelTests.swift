@@ -29,7 +29,7 @@ final class MatchViewModelTests: XCTestCase {
     // MARK: - Builders
 
     private func player(_ id: String, seat: Int, dice: Int = 5) -> PublicPlayer {
-        PublicPlayer(id: id, seat: seat, diceCount: dice, eliminated: dice == 0, palificoUsed: false)
+        PublicPlayer(id: id, seat: seat, diceCount: dice, eliminated: dice == 0)
     }
 
     private func seat(_ id: String, seat: Int, control: SeatControl = .human) -> SeatStatus {
@@ -40,8 +40,6 @@ final class MatchViewModelTests: XCTestCase {
         phase: Phase = .bidding(.init(turnId: "p1")),
         myDice: [Face] = [.two, .three, .four, .five, .six],
         bids: [BidRecord] = [],
-        palifico: Bool = false,
-        lockedFace: Face? = nil,
         lastReveal: RevealSummary? = nil,
         bidOptions: BidOptions? = nil,
         turnEndsInMs: Int? = 30_000,
@@ -55,13 +53,7 @@ final class MatchViewModelTests: XCTestCase {
                 you: PlayerView.You(id: "p1", seat: 0, dice: myDice),
                 players: [player("p1", seat: 0), player("p2", seat: 1)],
                 phase: phase,
-                round: PlayerView.Round(
-                    index: 0,
-                    palifico: palifico,
-                    starterId: "p1",
-                    lockedFace: lockedFace,
-                    bids: bids
-                ),
+                round: PlayerView.Round(index: 0, starterId: "p1", bids: bids),
                 lastReveal: lastReveal,
                 totalDiceInPlay: 10
             ),
@@ -99,7 +91,6 @@ final class MatchViewModelTests: XCTestCase {
             challengerId: "p2",
             bidderId: "p1",
             bid: Bid(quantity: 3, face: .four),
-            wildOnes: true,
             actualCount: bidStands ? 3 : 2,
             bidStands: bidStands,
             hands: ["p1": [.four, .two], "p2": [.six, .one]],
@@ -189,21 +180,22 @@ final class MatchViewModelTests: XCTestCase {
         XCTAssertTrue(model.canChallenge)
     }
 
-    func testPalificoOffersTheLockedFaceOnly() {
+    /// R-13: no round narrows the picker to a single face any more. The only thing that can
+    /// take a face away is the R-04 cap, and the client learns that from the server's minimums
+    /// rather than working it out — which is why this test drives `biddableFaces` off `options`.
+    func testEveryFaceStaysBiddableOnceARoundIsUnderWay() {
         let model = makeModel()
         model.apply(
             state(
                 snapshot(
                     bids: [BidRecord(playerId: "p1", bid: Bid(quantity: 2, face: .three))],
-                    palifico: true,
-                    lockedFace: .three,
-                    bidOptions: options([.three: 3])
+                    bidOptions: options([.one: 3, .two: 3, .three: 3, .four: 2, .five: 2, .six: 2])
                 )
             )
         )
-        XCTAssertTrue(model.isPalifico)
-        XCTAssertEqual(model.lockedFace, .three)
-        XCTAssertEqual(model.biddableFaces, [.three])
+        XCTAssertEqual(model.biddableFaces, Face.allCases)
+        XCTAssertEqual(model.minimumQuantity(for: .one), 3)
+        XCTAssertEqual(model.minimumQuantity(for: .six), 2)
     }
 
     // MARK: - Turn and challenge gating
@@ -302,7 +294,6 @@ final class MatchViewModelTests: XCTestCase {
             challengerId: "p2",
             bidderId: "p1",
             bid: Bid(quantity: 3, face: .four),
-            wildOnes: true,
             actualCount: 2,
             bidStands: false,
             hands: ["p1": [.four, .two], "p2": [.six, .six]],
@@ -369,17 +360,11 @@ final class MatchFeelTests: XCTestCase {
                 config: MatchConfig(startingDice: 5, maxDice: 5),
                 you: PlayerView.You(id: "p1", seat: 0, dice: [.five, .two]),
                 players: [
-                    PublicPlayer(id: "p1", seat: 0, diceCount: 2, eliminated: false, palificoUsed: false),
-                    PublicPlayer(id: "p2", seat: 1, diceCount: 2, eliminated: false, palificoUsed: false),
+                    PublicPlayer(id: "p1", seat: 0, diceCount: 2, eliminated: false),
+                    PublicPlayer(id: "p2", seat: 1, diceCount: 2, eliminated: false),
                 ],
                 phase: phase,
-                round: PlayerView.Round(
-                    index: roundIndex,
-                    palifico: false,
-                    starterId: "p1",
-                    lockedFace: nil,
-                    bids: []
-                ),
+                round: PlayerView.Round(index: roundIndex, starterId: "p1", bids: []),
                 lastReveal: lastReveal,
                 totalDiceInPlay: 4
             ),
@@ -410,7 +395,6 @@ final class MatchFeelTests: XCTestCase {
             challengerId: "p2",
             bidderId: "p1",
             bid: Bid(quantity: 3, face: .four),
-            wildOnes: true,
             actualCount: bidStands ? 3 : 2,
             bidStands: bidStands,
             hands: ["p1": [.four, .two], "p2": [.six, .one]],
@@ -609,8 +593,7 @@ final class EventCopyTests: XCTestCase {
                     challengerId: "me",
                     bidderId: "dana",
                     bid: Bid(quantity: 4, face: .three),
-                    wildOnes: true,
-                    actualCount: 4,
+                            actualCount: 4,
                     bidStands: true,
                     hands: ["me": [.three], "dana": [.one]],
                     loserId: "me",
@@ -628,10 +611,9 @@ final class EventCopyTests: XCTestCase {
     func testEveryEventVariantSaysSomething() {
         let events: [ProtocolEvent] = [
             .matchStarted(.init(playerIds: ["me", "dana"], startingDice: 5)),
-            .roundStarted(.init(index: 2, starterId: "me", palifico: true, diceCounts: ["me": 1])),
+            .roundStarted(.init(index: 2, starterId: "me", diceCounts: ["me": 1])),
             .bidMade(.init(playerId: "me", bid: Bid(quantity: 2, face: .six))),
             .playerEliminated(.init(playerId: "me")),
-            .palificoArmed(.init(playerId: "dana")),
             .matchEnded(.init(winnerId: "me")),
             .playerTimedOut(.init(playerId: "dana", consecutive: 1, autoBid: Bid(quantity: 1, face: .two))),
             .playerDisconnected(.init(playerId: "dana", graceMs: 45_000)),
@@ -651,14 +633,14 @@ final class EventCopyTests: XCTestCase {
         )
         XCTAssertEqual(
             ProtocolEvent.roundStarted(
-                .init(index: 2, starterId: "me", palifico: true, diceCounts: [:])
+                .init(index: 2, starterId: "me", diceCounts: [:])
             ).summary(naming),
-            "Round 3: PALIFICO, You opens"
+            "Round 3: You opens"
         )
     }
 
     func testARefusalAlwaysHasSomethingReadableToSay() {
-        for code in [ErrorCode.bidTooLow, .notYourTurn, .palificoFaceLocked, .rateLimited] {
+        for code in [ErrorCode.bidTooLow, .notYourTurn, .bidExceedsDiceInPlay, .rateLimited] {
             XCTAssertFalse(code.readable.isEmpty)
             XCTAssertFalse(code.readable.contains("_"), "\(code) shows a raw reason code")
         }

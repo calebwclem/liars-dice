@@ -17,7 +17,7 @@
  */
 import type { Bid, Face, GameState, PlayerId, PlayerView, Result } from './types.ts';
 import { err, FACES, ok } from './types.ts';
-import { lockedFace, standingBid, totalDiceInPlay } from './query.ts';
+import { standingBid, totalDiceInPlay } from './query.ts';
 
 export const isFace = (value: number): value is Face =>
   Number.isInteger(value) && value >= 1 && value <= 6;
@@ -34,41 +34,37 @@ export interface BidOption {
   readonly minQuantity: number | null;
 }
 
+/**
+ * Everything a bid is judged against — and note how little that is. Both fields are public
+ * knowledge, which is what makes `bidOptionsIn` safe to hand a client: the offer it draws
+ * its picker from cannot encode anything about what is under the cups.
+ */
 export interface BidContext {
   /** The bid on the table, or null if the round has not been opened (R-05). */
   readonly standing: Bid | null;
-  /** R-13: the face the opening bid of a palifico round locked; null otherwise. */
-  readonly lockedFace: Face | null;
-  /** R-07 / R-13: false means ones are wild. */
-  readonly palifico: boolean;
   /** R-04: the ceiling on a legal quantity. */
   readonly diceInPlay: number;
 }
 
 export const bidContextOf = (state: GameState): BidContext => ({
   standing: standingBid(state),
-  lockedFace: lockedFace(state),
-  palifico: state.round.palifico,
   diceInPlay: totalDiceInPlay(state),
 });
 
 export const bidContextOfView = (view: PlayerView): BidContext => ({
   standing: view.round.bids.at(-1)?.bid ?? null,
-  lockedFace: view.round.lockedFace,
-  palifico: view.round.palifico,
   diceInPlay: view.totalDiceInPlay,
 });
 
 /**
- * R-04: how many dice on the table show `face`. R-07: a 1 counts as any face when ones
- * are wild — but a bid *on* ones counts only the ones themselves, never double.
+ * R-04: how many dice on the table show `face`. R-07: a 1 counts as any face, always —
+ * but a bid *on* ones counts only the ones themselves, never double.
  */
 export function countFace(
   hands: Readonly<Record<PlayerId, readonly Face[]>>,
   face: Face,
-  wildOnes: boolean,
 ): number {
-  const wild = wildOnes && face !== 1;
+  const wild = face !== 1;
   let count = 0;
   for (const hand of Object.values(hands)) {
     for (const die of hand) {
@@ -90,7 +86,7 @@ export const isRaise = (prev: Bid, next: Bid): boolean => compareBids(prev, next
 
 /**
  * Every reason a bid can be rejected, in the order a player would care about: malformed
- * first, then out of range (R-04), then out of order (R-08/R-09/R-13).
+ * first, then out of range (R-04), then out of order (R-08).
  */
 export function checkBidIn(ctx: BidContext, next: Bid): Result<true> {
   if (!Number.isInteger(next.quantity) || next.quantity < 1) return err('BID_QUANTITY_INVALID');
@@ -100,9 +96,7 @@ export function checkBidIn(ctx: BidContext, next: Bid): Result<true> {
   const { standing } = ctx;
   if (standing === null) return ok(true); // R-05: an opening bid has nothing to clear.
 
-  if (ctx.lockedFace !== null && next.face !== ctx.lockedFace) {
-    return err('PALIFICO_FACE_LOCKED'); // R-13
-  }
+  // R-13: nothing else to check. No round locks a face, so a raise is a raise.
   if (!isRaise(standing, next)) return err('BID_TOO_LOW');
   return ok(true);
 }

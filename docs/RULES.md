@@ -4,8 +4,11 @@ This document is the **single source of truth** for game behavior. If code and t
 document disagree, this document wins — fix the code. If this document is ambiguous,
 stop and ask the human to amend it. Do not invent rules.
 
-The variant below is Perudo-style. Every rule has an ID so tests can reference it
-(e.g. `test('R-07: ones are not wild during palifico')`).
+The variant below is **Pirate's Dice** — the common-hand form of liar's dice, as played
+in Pirates of the Caribbean and described by the mainstream rule sources. It is *not*
+Perudo/Dudo: the Peruvian palifico round is deliberately absent (R-13), as are the
+ones-conversion bidding rules (R-09) and calza. Every rule has an ID so tests can
+reference it (e.g. `test('R-07: a one counts as any face')`).
 
 ---
 
@@ -26,8 +29,10 @@ The variant below is Perudo-style. Every rule has an ID so tests can reference i
   the opening bid; there is no minimum opening bid other than R-06's validity rules.
 - **R-06** On their turn a player must either **raise** or **challenge** (R-10). The very
   first player of a round must bid — they cannot challenge.
-- **R-07** **Ones are wild**: a die showing 1 counts as any face. Exception: palifico
-  rounds (R-13).
+- **R-07** **Ones are wild**: a die showing 1 counts as any face. Always — there is no
+  round or endgame in which this is suspended (R-13). The one exception is by face, not
+  by round: a bid *on* ones counts only actual ones, never doubling a one that is already
+  being counted as itself.
 
 ### Raising
 
@@ -65,15 +70,22 @@ The variant below is Perudo-style. Every rule has an ID so tests can reference i
   load-bearing if calza — spot-on, which returns a die — is added in a later version.)
 - **R-12** A player at 0 dice is **eliminated**. The last player with dice wins the match.
 
-## Palifico
+## The last die
 
-- **R-13** When a player drops from 2 dice to exactly **1 die**, the *next* round is a
-  palifico round, started by that player. During a palifico round:
-  - Ones are **not** wild; they count only as ones.
-  - The face is **fixed** by the opening bid — subsequent raises may only increase
-    quantity, not change face.
-  - A given player triggers palifico only **once per match** (the first time they reach
-    1 die). Track this per player.
+- **R-13** **There is no palifico round.** A player down to one die plays by exactly the
+  same rules as everyone else: ones stay wild for them and for the table, the face is
+  never locked, and every face remains biddable at its usual quantity. Reaching one die
+  changes nothing except how much you have left to lose.
+
+  This is a deliberate divergence from Perudo, which suspends wild ones and locks the
+  face for the round after a player drops to one die. Pirate's Dice has no such rule, and
+  it works against the game: the short-stacked player is the one who most needs to bluff,
+  and locking the face leaves them a single number to raise on. A lone wild one — the
+  best hand a one-die player can hold — is worth the most precisely because it can be
+  bid at any face, and palifico is the rule that takes that away.
+
+  This rule is stated as an absence rather than deleted so the divergence is on the
+  record and stays tested. See `docs/DECISIONS.md`.
 - **R-14** If a player is eliminated, the next round starts with the player to their left
   (clockwise) who is still in the match.
 - **R-15** Otherwise, the round after a challenge starts with the player who **lost the

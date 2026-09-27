@@ -21,8 +21,6 @@ function viewOf(options: {
   myDice: readonly Face[];
   totalDiceInPlay: number;
   bids?: readonly { playerId: PlayerId; bid: { quantity: number; face: Face } }[];
-  palifico?: boolean;
-  lockedFace?: Face | null;
   turnId?: string;
 }): PlayerView {
   const bids = options.bids ?? [];
@@ -37,24 +35,16 @@ function viewOf(options: {
         seat: 0,
         diceCount: options.myDice.length,
         eliminated: false,
-        palificoUsed: false,
       },
       {
         id: 'them',
         seat: 1,
         diceCount: options.totalDiceInPlay - options.myDice.length,
         eliminated: false,
-        palificoUsed: false,
       },
     ],
     phase: { kind: 'bidding', turnId: options.turnId ?? 'me' },
-    round: {
-      index: 0,
-      palifico: options.palifico ?? false,
-      starterId: 'me',
-      lockedFace: options.lockedFace ?? null,
-      bids,
-    },
+    round: { index: 0, starterId: 'me', bids },
     lastReveal: null,
     totalDiceInPlay: options.totalDiceInPlay,
   };
@@ -157,11 +147,12 @@ describe('Judgement', () => {
     expect(judgement?.reason).toBe('no-raise-possible');
   });
 
-  test('R-13: during palifico it stops treating ones as wild', () => {
-    // Four ones and a six, against a bid of five sixes. With ones wild that is a certainty; in a
-    // palifico round the ones are worth nothing and the bid is a lie.
+  test('R-13: it treats ones as wild in every round, including its last', () => {
+    // Four ones and a six, against a bid of five sixes. The ones make that a certainty, so the
+    // bot raises rather than calling. Palifico used to be the round where it read the same hand
+    // as a lie; there is no longer any view that makes it do so.
     const hand: readonly Face[] = [1, 1, 1, 1, 6];
-    const wild = decide(
+    const judgement = decide(
       viewOf({
         myDice: hand,
         totalDiceInPlay: 10,
@@ -169,19 +160,20 @@ describe('Judgement', () => {
       }),
       { profile: never, rng: fixed(0.9) },
     );
-    const palifico = decide(
+    expect(judgement?.standingChance).toBe(1);
+    expect(judgement?.action.type).toBe('bid');
+
+    // And the same hand down to its last die: one wild one, every face still worth something.
+    const lastDie = decide(
       viewOf({
-        myDice: hand,
-        totalDiceInPlay: 10,
-        bids: [{ playerId: 'them', bid: { quantity: 5, face: 6 } }],
-        palifico: true,
-        lockedFace: 6,
+        myDice: [1],
+        totalDiceInPlay: 6,
+        bids: [{ playerId: 'them', bid: { quantity: 2, face: 4 } }],
       }),
       { profile: never, rng: fixed(0.9) },
     );
-    expect(wild?.standingChance ?? 0).toBeGreaterThan(palifico?.standingChance ?? 1);
-    expect(wild?.action.type).toBe('bid');
-    expect(palifico?.action.type).toBe('dudo');
+    expect(lastDie?.standingChance ?? 0).toBeGreaterThan(0.5);
+    expect(lastDie?.action.type).toBe('bid');
   });
 });
 
@@ -376,12 +368,12 @@ describe('Against the engine', () => {
 });
 
 describe('Probability', () => {
-  test('R-07: a wild one doubles the chance a die matches', () => {
-    expect(matchChance(4, true)).toBeCloseTo(2 / 6, 10);
+  test('R-07/R-13: a wild one doubles the chance a die matches, in every round', () => {
+    expect(matchChance(4)).toBeCloseTo(2 / 6, 10);
     // A bid on ones counts only ones, however wild they are for everything else.
-    expect(matchChance(1, true)).toBeCloseTo(1 / 6, 10);
-    // R-13: nothing is wild during palifico.
-    expect(matchChance(4, false)).toBeCloseTo(1 / 6, 10);
+    expect(matchChance(1)).toBeCloseTo(1 / 6, 10);
+    // There is no second argument any more — no round turns wildness off.
+    expect(matchChance.length).toBe(1);
   });
 
   test('the tail probability matches values worked out by hand', () => {

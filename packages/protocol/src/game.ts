@@ -46,7 +46,6 @@ export const RevealSummarySchema = z.strictObject({
   challengerId: playerId,
   bidderId: playerId,
   bid: BidSchema,
-  wildOnes: z.boolean(),
   actualCount: count,
   bidStands: z.boolean(),
   hands: z.record(playerId, z.array(FaceSchema)),
@@ -60,7 +59,6 @@ export const PublicPlayerSchema = z.strictObject({
   seat: count,
   diceCount: count,
   eliminated: z.boolean(),
-  palificoUsed: z.boolean(),
 });
 
 export const MatchConfigSchema = z.strictObject({
@@ -88,9 +86,7 @@ export const PlayerViewSchema = z.strictObject({
   phase: PhaseSchema,
   round: z.strictObject({
     index: count,
-    palifico: z.boolean(),
     starterId: playerId,
-    lockedFace: FaceSchema.nullable(),
     bids: z.array(BidRecordSchema),
   }),
   lastReveal: RevealSummarySchema.nullable(),
@@ -108,7 +104,6 @@ export const GameEventSchema = z.discriminatedUnion('type', [
     type: z.literal('roundStarted'),
     index: count,
     starterId: playerId,
-    palifico: z.boolean(),
     diceCounts: z.record(playerId, count),
   }),
   z.strictObject({ type: z.literal('bidMade'), playerId, bid: BidSchema }),
@@ -121,7 +116,6 @@ export const GameEventSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('diceRevealed'), reveal: RevealSummarySchema }),
   z.strictObject({ type: z.literal('dieLost'), playerId, diceCount: count }),
   z.strictObject({ type: z.literal('playerEliminated'), playerId }),
-  z.strictObject({ type: z.literal('palificoArmed'), playerId }),
   z.strictObject({ type: z.literal('matchEnded'), winnerId: playerId }),
 ]);
 
@@ -136,7 +130,6 @@ export const EngineErrorReasonSchema = z.enum([
   'BID_EXCEEDS_DICE_IN_PLAY',
   'BID_FACE_INVALID',
   'BID_TOO_LOW',
-  'PALIFICO_FACE_LOCKED',
   'OPENING_BID_REQUIRED',
   'INVALID_PLAYER_COUNT',
   'DUPLICATE_PLAYER_ID',

@@ -56,7 +56,6 @@ export {
 export type { BidContext, BidOption } from './bids.ts';
 export {
   activePlayers,
-  lockedFace,
   nextActiveAfter,
   playerById,
   standingBid,

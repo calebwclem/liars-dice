@@ -259,15 +259,13 @@ final class SessionFlowTests: XCTestCase {
                         config: MatchConfig(startingDice: 5, maxDice: 5),
                         you: PlayerView.You(id: "me", seat: 0, dice: [.five, .five, .two, .six, .one]),
                         players: [
-                            PublicPlayer(id: "me", seat: 0, diceCount: 5, eliminated: false, palificoUsed: false),
-                            PublicPlayer(id: "them", seat: 1, diceCount: 5, eliminated: false, palificoUsed: false),
+                            PublicPlayer(id: "me", seat: 0, diceCount: 5, eliminated: false),
+                            PublicPlayer(id: "them", seat: 1, diceCount: 5, eliminated: false),
                         ],
                         phase: .bidding(.init(turnId: "me")),
                         round: PlayerView.Round(
                             index: 0,
-                            palifico: false,
                             starterId: "them",
-                            lockedFace: nil,
                             bids: [BidRecord(playerId: "them", bid: Bid(quantity: 2, face: .four))]
                         ),
                         lastReveal: nil,

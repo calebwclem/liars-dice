@@ -130,7 +130,6 @@ struct RolledHand: View {
     /// Changing this re-runs the roll — the round index, in practice.
     var rollToken: Int
     var countingFace: Face?
-    var wildOnes = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var landed = false
@@ -159,10 +158,11 @@ struct RolledHand: View {
         }
     }
 
-    /// R-07: a one counts toward any face when ones are wild, but a bid *on* ones counts only ones.
+    /// R-07: a one counts toward any face, but a bid *on* ones counts only ones. R-13 removed
+    /// the round that used to suspend this, so there is no longer a flag to pass in.
     private func counts(_ face: Face) -> Bool {
         guard let countingFace else { return false }
         if face == countingFace { return true }
-        return wildOnes && countingFace != .one && face == .one
+        return countingFace != .one && face == .one
     }
 }

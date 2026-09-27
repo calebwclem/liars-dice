@@ -446,3 +446,51 @@ challenging is the only legal move.
 **If this is ever revisited**, the honest middle option is the one not taken: keep the conversions
 and make the app teach them at the moment they apply — the bid picker already knows the minimum for
 every face and could say why it is what it is.
+
+---
+
+## 2026-09-27 — R-13 removed: the variant is Pirate's Dice, not Perudo
+
+**Decision:** Palifico is gone. There is no round in which ones stop being wild and no round
+in which the opening bid locks the face. A player down to one die plays by exactly the rules
+everyone else is playing by. R-13 remains in `docs/RULES.md` as a stated absence rather than a
+gap in the numbering, so the divergence stays on the record and stays tested.
+
+**Alternatives:** Keeping palifico and explaining it better in the UI (a first attempt at this
+shipped and was reverted the same day); keeping the ones-are-not-wild half and dropping only the
+face lock; making it a per-match option.
+
+**Why:** The owner played a match, hit a palifico round, and reported both halves as wrong — not
+confusing, wrong. The face lock takes bluffing away from the player who most needs it: on one die
+you have nothing to bid but a story, and a locked face leaves a single number to tell it with.
+And a lone wild one is the best hand a one-die player can hold precisely because it argues for
+every face equally; suspending wild ones deletes the one good outcome of the roll that put them
+there. Both are true, and they compound: palifico fires exactly when a player is weakest and
+removes the two tools that make being weak survivable.
+
+The rule is Perudo's, not this game's. Pirate's Dice — the common-hand form, the one the owner
+has played and the one the mainstream rule sources describe — has no palifico at all: ones are
+wild throughout, a raise is quantity-up or face-up (R-08, already what we had), the challenge
+loser starts the next round (R-15, already what we had), and reaching one die is just a dice
+count. Removing palifico brought the ruleset *closer* to its sources rather than further away,
+which is why this is a deletion and not an invention. `docs/RULES.md` now names the variant in
+its header so the next question of this kind has a document to be settled against.
+
+**What it cost.** More than the rule: palifico was the only thing in the game that varied by
+round, so its removal took a whole axis out of the contract. `RoundState.palifico`,
+`GameState.palificoNextFor`, `PlayerState.palificoUsed`, `PlayerView.round.lockedFace`,
+`RevealSummary.wildOnes`, the `palificoArmed` event and the `PALIFICO_FACE_LOCKED` error are all
+gone; `countFace` and `matchChance` lost their `wildOnes` parameter, because with no round able
+to turn wildness off there is no caller left with a reason to ask. `BidContext` is down to
+`{standing, diceInPlay}` — two public facts, which is a stronger statement of the redaction
+property than the test that asserts it: the bid options handed to a client now *cannot* encode
+anything about the cups, because there is nothing else in scope to encode.
+
+This is a breaking wire change that removes fields rather than adding them, so
+`PROTOCOL_VERSION` and `MIN_PROTOCOL_VERSION` both move to 2. Nothing is shipped, so the gate
+simply refuses v1 rather than translating.
+
+**If this is ever revisited**, palifico belongs behind a match option decided at table creation
+and shown in the lobby, not as a rule that fires without warning mid-match. That was the real
+failure of the version that shipped: not that the rule was unexplained, but that a player learned
+it existed at the moment it was used against them.

@@ -77,8 +77,6 @@ describe('Setup', () => {
     expect(state.phase).toEqual({ kind: 'bidding', turnId: state.round.starterId });
     expect(state.config).toEqual(TEST_CONFIG);
     expect(state.lastReveal).toBeNull();
-    expect(state.palificoNextFor).toBeNull();
-    expect(state.round.palifico).toBe(false);
     expect(state.round.bids).toEqual([]);
   });
 });

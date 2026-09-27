@@ -86,8 +86,9 @@ function applyDudo(state: GameState, playerId: PlayerId, ctx: Ctx): Result<Trans
   const bidder = state.round.bids.at(-1);
   if (bid === null || bidder === undefined) return err('OPENING_BID_REQUIRED'); // R-06
 
-  const wildOnes = !state.round.palifico; // R-07, R-13
-  const actualCount = countFace(state.round.hands, bid.face, wildOnes);
+  // R-07: ones are wild here and in every other round; R-13 is the rule that says so by
+  // refusing to make an exception. `countFace` still excludes them from a bid *on* ones.
+  const actualCount = countFace(state.round.hands, bid.face);
   const bidStands = actualCount >= bid.quantity; // R-10: "at least"
   const loserId = bidStands ? playerId : bidder.playerId;
 
@@ -99,19 +100,13 @@ function applyDudo(state: GameState, playerId: PlayerId, ctx: Ctx): Result<Trans
 
   const eliminatedId = loser.diceCount === 0 ? loserId : null; // R-12
 
-  // R-13: the first time a player drops to exactly one die, the next round is theirs and
-  // it is a palifico round. Once per match, tracked on the player.
-  const armsPalifico = loser.diceCount === 1 && !loser.palificoUsed;
-  const withFlags = armsPalifico
-    ? players.map((p) => (p.id === loserId ? { ...p, palificoUsed: true } : p))
-    : players;
-
+  // R-13: reaching one die arms nothing. The loser starts the next round by R-15 alone,
+  // on the same terms as everybody else.
   const reveal: RevealSummary = {
     roundIndex: state.round.index,
     challengerId: playerId,
     bidderId: bidder.playerId,
     bid,
-    wildOnes,
     actualCount,
     bidStands,
     hands: state.round.hands,
@@ -120,7 +115,7 @@ function applyDudo(state: GameState, playerId: PlayerId, ctx: Ctx): Result<Trans
     eliminatedId,
   };
 
-  const survivors = withFlags.filter(isActive);
+  const survivors = players.filter(isActive);
   const winner = survivors.length === 1 ? survivors[0] : undefined; // R-12
 
   const events: GameEvent[] = [
@@ -129,16 +124,14 @@ function applyDudo(state: GameState, playerId: PlayerId, ctx: Ctx): Result<Trans
     { type: 'dieLost', playerId: loserId, diceCount: loser.diceCount },
   ];
   if (eliminatedId !== null) events.push({ type: 'playerEliminated', playerId: eliminatedId });
-  if (armsPalifico) events.push({ type: 'palificoArmed', playerId: loserId });
   if (winner !== undefined) events.push({ type: 'matchEnded', winnerId: winner.id });
 
   return ok({
     state: {
       ...state,
-      players: withFlags,
+      players,
       phase: winner === undefined ? { kind: 'reveal' } : { kind: 'ended', winnerId: winner.id },
       lastReveal: reveal,
-      palificoNextFor: armsPalifico ? loserId : null,
       seq: state.seq + 1,
       endedAt: winner === undefined ? state.endedAt : ctx.now,
     },
@@ -147,7 +140,7 @@ function applyDudo(state: GameState, playerId: PlayerId, ctx: Ctx): Result<Trans
 }
 
 /**
- * Close the reveal and deal the next round: R-13/R-14/R-15 choose who starts, R-03 rolls.
+ * Close the reveal and deal the next round: R-14/R-15 choose who starts, R-03 rolls.
  *
  * Server-issued only — it is how the server says "the clients have seen the reveal". It
  * must never be accepted from a client.
@@ -158,16 +151,14 @@ function applyAdvanceRound(state: GameState, ctx: Ctx): Result<Transition> {
   if (reveal === null) return err('WRONG_PHASE');
 
   const starterId = chooseStarter(state, reveal);
-  const palifico = state.palificoNextFor !== null; // R-13
   const hands = rollHands(state.players, ctx.rng); // R-03
   const index = state.round.index + 1;
 
   return ok({
     state: {
       ...state,
-      round: { index, palifico, starterId, hands, bids: [] },
+      round: { index, starterId, hands, bids: [] },
       phase: { kind: 'bidding', turnId: starterId },
-      palificoNextFor: null,
       seq: state.seq + 1,
     },
     events: [
@@ -175,7 +166,6 @@ function applyAdvanceRound(state: GameState, ctx: Ctx): Result<Transition> {
         type: 'roundStarted',
         index,
         starterId,
-        palifico,
         diceCounts: diceCountsOf(state.players),
       },
     ],
@@ -183,15 +173,10 @@ function applyAdvanceRound(state: GameState, ctx: Ctx): Result<Transition> {
 }
 
 /**
- * Who opens the next round.
- *
- * R-13 wins when set, and points at the player who just dropped to one die — which is the
- * same player R-15 would pick, since dropping a die is how they got there. R-14 then
- * covers the case where the die-loser is out of the match altogether.
+ * Who opens the next round: R-15, then R-14 for the case where the die-loser is out of the
+ * match altogether.
  */
 function chooseStarter(state: GameState, reveal: RevealSummary): PlayerId {
-  if (state.palificoNextFor !== null) return state.palificoNextFor; // R-13
-
   const loser = playerById(state, reveal.loserId);
   if (loser !== null && isActive(loser)) return loser.id; // R-15
 

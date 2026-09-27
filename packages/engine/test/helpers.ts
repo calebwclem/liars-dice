@@ -47,18 +47,14 @@ export function makeState(spec: {
   bids?: readonly BidRecord[];
   /** Defaults to the round starter. */
   turnId?: PlayerId;
-  palifico?: boolean;
   /** Defaults to the first seat. */
   starterId?: PlayerId;
-  palificoUsed?: readonly PlayerId[];
-  palificoNextFor?: PlayerId | null;
   phase?: Phase;
   roundIndex?: number;
   config?: MatchConfig;
 }): GameState {
   const ids = Object.keys(spec.hands);
   const starterId = spec.starterId ?? ids[0]!;
-  const palificoUsed = spec.palificoUsed ?? [];
   return {
     matchId: 'M',
     config: spec.config ?? TEST_CONFIG,
@@ -66,18 +62,15 @@ export function makeState(spec: {
       id,
       seat,
       diceCount: spec.diceCounts?.[id] ?? spec.hands[id]!.length,
-      palificoUsed: palificoUsed.includes(id),
     })),
     round: {
       index: spec.roundIndex ?? 0,
-      palifico: spec.palifico ?? false,
       starterId,
       hands: spec.hands,
       bids: spec.bids ?? [],
     },
     phase: spec.phase ?? { kind: 'bidding', turnId: spec.turnId ?? starterId },
     lastReveal: null,
-    palificoNextFor: spec.palificoNextFor ?? null,
     seq: 0,
     startedAt: 0,
     endedAt: null,

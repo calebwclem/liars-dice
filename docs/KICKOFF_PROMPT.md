@@ -48,7 +48,7 @@ error costs you the most, and it's the one place Claude Code cannot check your i
 > **Work rule-by-rule, test-first.** For each rule ID in `docs/RULES.md`, write a failing
 > test whose name begins with the rule ID, then implement it. Cover R-01 through R-21
 > except R-21 (defer). Pay particular attention to R-08 and R-09 (raise legality,
-> including the ones/non-ones conversions) and R-13 through R-15 (palifico and round
+> including the ones/non-ones conversions) and R-13 through R-15 (the last die and round
 > starter selection) — these are the rules most likely to be wrong.
 >
 > Add property-based tests with fast-check asserting invariants across random legal

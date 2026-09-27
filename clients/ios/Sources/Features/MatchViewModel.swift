@@ -216,10 +216,6 @@ final class MatchViewModel {
 
     var bidHistory: [BidRecord] { view?.round.bids ?? [] }
 
-    var isPalifico: Bool { view?.round.palifico ?? false }
-
-    var lockedFace: Face? { view?.round.lockedFace }
-
     var totalDiceInPlay: Int { view?.totalDiceInPlay ?? 0 }
 
     var roundNumber: Int { (view?.round.index ?? 0) + 1 }

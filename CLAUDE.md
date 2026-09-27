@@ -92,7 +92,7 @@ xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17
   Do not scaffold five half-built subsystems.
 - **Run the tests before claiming anything works.** If you cannot run it, say so
   explicitly rather than asserting success.
-- **Small commits**, conventional-commit messages (`feat(engine): palifico rounds`).
+- **Small commits**, conventional-commit messages (`feat(engine): bid options in snapshots`).
 - When you make a non-obvious architectural choice, append a short entry to
   `docs/DECISIONS.md` (date, decision, alternatives considered, why).
 - If a task is underspecified, **ask one sharp question** rather than guessing across

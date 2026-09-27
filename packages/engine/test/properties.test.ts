@@ -167,17 +167,16 @@ describe('Invariants across random legal play', () => {
 
 describe('R-08/R-09 checked against the arithmetic in the document', () => {
   /** Six players, five dice each: a 30-die table, so no minimum is clipped by R-04. */
-  const table = (standing: Bid, palifico = false): GameState =>
+  const table = (standing: Bid): GameState =>
     makeState({
       hands: Object.fromEntries(ID_POOL.map((id) => [id, [1, 2, 3, 4, 5] as Face[]])),
       bids: [{ playerId: 'a', bid: standing }],
       turnId: 'b',
-      palifico,
     });
 
   /** The smallest quantity at which `face` becomes a legal raise over `standing`. */
-  const minQuantityFor = (standing: Bid, face: Face, palifico = false): number | null => {
-    const state = table(standing, palifico);
+  const minQuantityFor = (standing: Bid, face: Face): number | null => {
+    const state = table(standing);
     for (let q = 1; q <= totalDiceInPlay(state); q += 1) {
       if (checkBid(state, { quantity: q, face }).ok) return q;
     }
@@ -245,9 +244,8 @@ describe('R-08/R-09 checked against the arithmetic in the document', () => {
       fc.property(
         fc.integer({ min: 1, max: 20 }),
         fc.constantFrom<Face>(1, 2, 3, 4, 5, 6),
-        fc.boolean(),
-        (q, f, palifico) => {
-          const state = table(bid(q, f), palifico);
+        (q, f) => {
+          const state = table(bid(q, f));
           const bids = legalBids(state);
           for (let i = 1; i < bids.length; i += 1) {
             expect(compareBids(bids[i - 1]!, bids[i]!)).toBeLessThan(0);
@@ -260,12 +258,14 @@ describe('R-08/R-09 checked against the arithmetic in the document', () => {
     );
   });
 
-  test('R-13: in a palifico round the locked face admits exactly one more die', () => {
+  test('R-13: no face is ever unreachable, whatever the standing bid', () => {
+    // Palifico left five of six faces at null here. Now the only face that costs more than
+    // a same-quantity switch is one at or below the standing face, and every face has a
+    // price: raise the quantity by one and anything is available again.
     fc.assert(
       fc.property(quantities, fc.constantFrom<Face>(1, 2, 3, 4, 5, 6), (q, f) => {
-        expect(minQuantityFor(bid(q, f), f, true)).toBe(q + 1);
         for (const other of [1, 2, 3, 4, 5, 6] as Face[]) {
-          if (other !== f) expect(minQuantityFor(bid(q, f), other, true)).toBeNull();
+          expect(minQuantityFor(bid(q, f), other)).toBe(other > f ? q : q + 1);
         }
       }),
     );
@@ -274,12 +274,11 @@ describe('R-08/R-09 checked against the arithmetic in the document', () => {
 
 describe('R-04..R-09: the legal set a client is told about', () => {
   /** Six players, five dice each. */
-  const table = (standing: Bid | null, palifico = false): GameState =>
+  const table = (standing: Bid | null): GameState =>
     makeState({
       hands: Object.fromEntries(ID_POOL.map((id) => [id, [1, 2, 3, 4, 5] as Face[]])),
       bids: standing === null ? [] : [{ playerId: 'a', bid: standing }],
       turnId: standing === null ? 'a' : 'b',
-      palifico,
     });
 
   test('R-04: for any face the legal quantities are one contiguous run up to the cap', () => {
@@ -295,9 +294,8 @@ describe('R-04..R-09: the legal set a client is told about', () => {
           }),
           { nil: null },
         ),
-        fc.boolean(),
-        (standing, palifico) => {
-          const state = table(standing, palifico);
+        (standing) => {
+          const state = table(standing);
           const cap = totalDiceInPlay(state);
           for (const option of bidOptionsOf(state)) {
             for (let quantity = 1; quantity <= cap; quantity += 1) {
@@ -388,18 +386,22 @@ describe('R-04..R-09: the legal set a client is told about', () => {
     );
   });
 
-  test('R-13: during palifico only the locked face has a minimum', () => {
+  test('R-13: no round ever strips a face out of the options', () => {
+    // The palifico round used to leave five of the six faces with no minimum at all. The
+    // only thing that may do that now is the R-04 cap, tested above.
     const state = makeState({
       hands: { a: [1, 2], b: [3, 4] },
-      palifico: true,
       starterId: 'a',
       bids: [{ playerId: 'a', bid: bid(2, 3) }],
       turnId: 'b',
     });
-    const options = bidOptionsOf(state);
-    expect(options.find((option) => option.face === 3)?.minQuantity).toBe(3);
-    for (const option of options) {
-      if (option.face !== 3) expect(option.minQuantity, `face ${String(option.face)}`).toBeNull();
-    }
+    expect(bidOptionsOf(state)).toEqual([
+      { face: 1, minQuantity: 3 },
+      { face: 2, minQuantity: 3 },
+      { face: 3, minQuantity: 3 },
+      { face: 4, minQuantity: 2 },
+      { face: 5, minQuantity: 2 },
+      { face: 6, minQuantity: 2 },
+    ]);
   });
 });

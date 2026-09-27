@@ -1,5 +1,5 @@
 /** Read-only questions about a GameState. No rule decisions live here. */
-import type { Bid, Face, GameState, PlayerId, PlayerState } from './types.ts';
+import type { Bid, GameState, PlayerId, PlayerState } from './types.ts';
 
 export const totalDiceInPlay = (state: GameState): number =>
   state.players.reduce((sum, p) => sum + p.diceCount, 0);
@@ -9,10 +9,6 @@ export const playerById = (state: GameState, id: PlayerId): PlayerState | null =
 
 /** The bid currently on the table, or null if the round has not been opened. */
 export const standingBid = (state: GameState): Bid | null => state.round.bids.at(-1)?.bid ?? null;
-
-/** R-13: the face the opening bid locked, or null outside a palifico round. */
-export const lockedFace = (state: GameState): Face | null =>
-  state.round.palifico ? (state.round.bids[0]?.bid.face ?? null) : null;
 
 /** R-12: a player with no dice is out. */
 export const isActive = (player: PlayerState): boolean => player.diceCount > 0;

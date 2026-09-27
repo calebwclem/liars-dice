@@ -62,15 +62,14 @@ describe('R-03 / R-20 redaction', () => {
     });
     const view = redactFor(state, 'c');
     expect(view.players).toEqual([
-      { id: 'a', seat: 0, diceCount: 5, eliminated: false, palificoUsed: false },
-      { id: 'b', seat: 1, diceCount: 5, eliminated: false, palificoUsed: false },
-      { id: 'c', seat: 2, diceCount: 5, eliminated: false, palificoUsed: false },
-      { id: 'd', seat: 3, diceCount: 5, eliminated: false, palificoUsed: false },
+      { id: 'a', seat: 0, diceCount: 5, eliminated: false },
+      { id: 'b', seat: 1, diceCount: 5, eliminated: false },
+      { id: 'c', seat: 2, diceCount: 5, eliminated: false },
+      { id: 'd', seat: 3, diceCount: 5, eliminated: false },
     ]);
     expect(view.round.bids).toEqual([{ playerId: 'a', bid: bid(3, 6) }]);
     expect(view.phase).toEqual({ kind: 'bidding', turnId: 'b' });
     expect(view.totalDiceInPlay).toBe(20);
-    expect(view.round.lockedFace).toBeNull();
   });
 
   test('R-10 / R-20: after a reveal every hand is public, and only then', () => {
