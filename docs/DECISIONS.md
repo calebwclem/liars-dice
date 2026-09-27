@@ -490,6 +490,37 @@ This is a breaking wire change that removes fields rather than adding them, so
 `PROTOCOL_VERSION` and `MIN_PROTOCOL_VERSION` both move to 2. Nothing is shipped, so the gate
 simply refuses v1 rather than translating.
 
+**Measured, 400 bot matches, same seeds before and after:**
+
+| | with palifico | without |
+|---|---|---|
+| rounds per match | 17.5 | 17.1 |
+| bids on ones | 1.8% | 0.1% |
+| players reaching one die | 1299 | 1257 |
+| mean further rounds survived on that die | 2.68 | 2.30 |
+| ...who went on to win the match | 7.6% | 4.5% |
+
+The last two rows run *against* the argument for the change and are recorded because of it: among
+bots, the one-die player did measurably better under palifico, not worse. The mechanism is not
+mysterious — with ones not wild, every bid in that round is far harder to satisfy, so challenges
+land, and the player who gets caught is usually whoever raised rather than the short stack who
+opened low. Palifico was, mechanically, a handicap round in favour of the player it fired for.
+
+It was removed anyway, and the numbers do not argue otherwise. What the short stack lost was not
+equity but *agency*: the choice of what to represent. A bot does not care that its options
+collapsed to one face and a ladder, because it was never going to tell a story with them; a person
+does, and the owner's complaint was exactly that. A rule that improves your odds by removing your
+decisions is a worse rule than the one it replaced, and bot win rate is the wrong instrument for
+seeing it. If the short stack later proves to need help, it should get a rule that gives it more
+to do, not less.
+
+The ones-bidding collapse is the other thing to note: 1.8% to 0.1%, effectively out of the game.
+That was already the direction R-09's removal set (a bid on ones counts only ones, so it is half
+as likely as any other face at the same price — dominated), and palifico was the last context
+where bidding ones made sense, since ones were not wild there. The face is now wild for counting
+and dead for bidding. Accepted, same trade as R-09: one dominated option in exchange for a rule a
+new player can hold in their head.
+
 **If this is ever revisited**, palifico belongs behind a match option decided at table creation
 and shown in the lobby, not as a rule that fires without warning mid-match. That was the real
 failure of the version that shipped: not that the rule was unexplained, but that a player learned
