@@ -35,6 +35,7 @@ packages/engine/      Pure TS rules engine + exhaustive tests. No dependencies.
 packages/protocol/    Zod schemas for all client<->server messages. Version constant.
 packages/bots/        Bot policies (pure; take a redacted view, return an action).
 apps/server/          WS gateway, matchmaker, room actors, persistence, auth.
+apps/cli/             Terminal client. Play a match against the bots, no server.
 apps/web/             (Phase 8) React + Vite client.
 clients/ios/          SwiftUI app. project.yml (XcodeGen) — see below.
 clients/android/      (Phase 9) Kotlin + Compose.
@@ -52,7 +53,8 @@ pnpm test                    # all TS tests
 pnpm --filter engine test    # engine tests only (fast — use this while iterating)
 pnpm --filter engine test:prop  # property-based invariant tests
 pnpm dev:server              # local server on :8080
-pnpm cli                     # terminal client — play a full game against bots, no UI
+pnpm cli                     # terminal client — play a full game against bots, no server
+pnpm play:ios                # build, install and launch the app on a simulator, server and all
 pnpm codegen                 # regenerate Swift/Kotlin models from packages/protocol
 pnpm lint && pnpm typecheck  # must both pass before you say a task is done
 ```

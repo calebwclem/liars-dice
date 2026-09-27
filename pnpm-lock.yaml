@@ -191,8 +191,20 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.2)(supports-color@7.2.0)
 
+  apps/cli:
+    dependencies:
+      '@liars-dice/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
+      '@liars-dice/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+
   apps/server:
     dependencies:
+      '@liars-dice/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
       '@liars-dice/engine':
         specifier: workspace:*
         version: link:../../packages/engine
@@ -209,6 +221,16 @@ importers:
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
+
+  packages/bots:
+    dependencies:
+      '@liars-dice/engine':
+        specifier: workspace:*
+        version: link:../engine
+    devDependencies:
+      fast-check:
+        specifier: ^4.3.0
+        version: 4.10.0
 
   packages/engine:
     devDependencies:

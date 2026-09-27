@@ -12,7 +12,7 @@ Real-time online multiplayer Liar's Dice. iOS first, then web, then Android.
 
 ## Status
 
-**Phases 0 to 4 complete.** Every rule in `docs/RULES.md` is implemented and tested except
+**Phases 0 to 5 complete.** Every rule in `docs/RULES.md` is implemented and tested except
 R-21, which the document itself marks v1.1.
 
 | Package | What it is |
@@ -21,13 +21,17 @@ R-21, which the document itself marks v1.1.
 | `packages/protocol` | Zod schemas for every message. `PROTOCOL_VERSION = 1`. The source of truth for shape. |
 | `apps/server` | WebSocket gateway, guest auth, matchmaker, room actors. Owns the clock and the sockets, so it owns R-16..R-19. |
 | `tools/codegen` | Zod → JSON Schema → Swift. Generates `clients/ios/Sources/Generated/Protocol.swift`. |
+| `packages/bots` | Bot policies. Binomial odds on the unseen dice, with a bluff rate. Takes a redacted view, so a bot cannot see the table. |
+| `apps/cli` | Terminal client. A full match against the bots with no server involved. |
 | `clients/ios` | SwiftUI app: guest auth, a `GameSocket` actor, and a themed, playable table with drawn dice, a paced reveal, a turn ring and haptics. |
 
-Play a match in the terminal, no server needed:
+## Playing it
+
+The quickest way, no server and no Xcode:
 
 ```bash
 pnpm install
-pnpm cli                      # you against three random-action bots
+pnpm cli                      # you against three bots, in the terminal
 pnpm cli -- --seed 42         # reproduce a specific match
 pnpm cli -- --players 6       # a six-handed table
 pnpm cli -- --auto            # let a bot take your seat, to watch a match play out
@@ -40,7 +44,14 @@ cp apps/server/.env.example apps/server/.env    # AUTH_SECRET is generated in de
 pnpm dev:server                                 # ws://localhost:8080, GET /health
 ```
 
-Build and run the iOS app:
+The real app, against a local server, in one command:
+
+```bash
+pnpm play:ios                # builds, installs, launches, starts the server
+                             # then tap "Find a match" — bots sit down after 5s
+```
+
+Build and test the iOS app by hand:
 
 ```bash
 pnpm codegen                 # Swift models from packages/protocol — do this first

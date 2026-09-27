@@ -358,3 +358,59 @@ gone. `MatchSnapshot` gained `turnMs` instead.
 without it — and that is the only thing the event carried that the snapshot did not already say.
 Dead wire surface that no server emits is exactly the kind of thing that rots, and the snapshot is
 already where the other server-owned annotations live.
+
+---
+
+## 2026-09-26 — Bots take a redacted view, and the type says so
+
+**Decision:** `packages/bots` exposes `decide(view: PlayerView, { profile, rng })`. The server calls
+`redactFor` before asking, so a bot receives exactly what a person would.
+
+**Alternatives:** Passing `GameState` and trusting the policy not to look.
+
+**Why:** The guarantee should be structural, not a comment. A policy that cannot be handed the table
+cannot read it, however it is edited later — and it means the same code can back the web client's
+offline practice mode in Phase 8 without a second implementation. It also keeps rules out: legality
+comes from `legalBidsIn`, so a bot cannot propose a move the server would refuse.
+
+---
+
+## 2026-09-26 — One comparison, not two thresholds
+
+**Decision:** On its turn a bot compares two numbers: the chance its best available raise is true,
+against the chance the standing bid is false. Whichever is larger wins, scaled by an `aggression`
+factor per profile.
+
+**Alternatives:** Independent thresholds — raise if a bid clears some credibility bar, challenge if
+the standing bid falls below another. That was the first implementation.
+
+**Why:** Watching a match killed it. Two thresholds meant a bot opened with the boldest bid it could
+still believe, which a cautious opponent called immediately, every round. There are only two legal
+moves, so the question is never "is this bid good enough" in the abstract — it is which of the two
+is better, and that is a comparison rather than a pair of tests.
+
+Two more things only a played match revealed. The opening bid is now the *boldest* bid above a
+confidence floor rather than the bid nearest a target: aiming at a target picks whichever bid sits
+closest to it, and "one one" is about 60% likely on a full table — on target and worthless. And a
+bluff takes the *likeliest* raise, not the cheapest: R-09 makes leaving a bid of ones cost 2q+1, so
+the cheapest raise over "four ones" is nine of something, which everybody calls.
+
+Measured over 600 four-player matches, one seat per profile plus a rotating fourth (fair share
+33.3%): cautious 24.7%, balanced 46.7%, bold 28.7%, at 17.5 rounds per match with two thirds of
+moves being bids. The profiles are personalities rather than difficulty tiers, so the spread is
+acceptable; `tournament.test.ts` guards only against a profile becoming broken.
+
+---
+
+## 2026-09-26 — The terminal client moved to apps/cli
+
+**Decision:** `packages/engine/src/cli.ts` became `apps/cli/src/main.ts`, its own workspace package
+depending on the engine and the bots.
+
+**Alternatives:** Keeping it in the engine with a dev dependency on `packages/bots`.
+
+**Why:** The CLI now plays against real bots, which makes it a program with dependencies and a great
+many side effects — and CLAUDE.md is unambiguous that the engine is a pure library with none. The
+dev-dependency route would have kept the CI check passing while making the claim untrue. A side
+benefit: with the CLI gone, the lint rules banning `Date` and `Math.random` inside the engine need
+no exemption at all, and now cover the bots too.
