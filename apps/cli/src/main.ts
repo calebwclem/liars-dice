@@ -1,12 +1,13 @@
 /**
- * A terminal client: one human against random-action bots, playing a full match.
+ * A terminal client: one human against the bots, playing a full match with no server involved.
  *
- * This is the impure edge of the package — it owns stdio, the clock, and the seed, which
- * is why the lint rules that forbid `Date` and `Math.random` inside the engine exempt this
- * one file. Everything it shows the human comes from `redactFor`, never from `GameState`,
- * so it cannot render information a real client would not have. The bots do read full
- * state: here the CLI stands in for the server, and Phase 5's `packages/bots` will take a
- * redacted view instead.
+ * It owns stdio, the clock and the seed, which is why it lives in `apps/` rather than inside the
+ * engine — the engine is a pure library with zero dependencies, and this has both a dependency and
+ * a great many side effects.
+ *
+ * Everything the human is shown comes from `redactFor`, never from `GameState`. So does every bot
+ * decision: each is handed its own redacted view, exactly as the server does it, so a bot at this
+ * table can no more see your dice than one on the server can.
  *
  * Dice come from a seeded PRNG so a match can be replayed from its seed. R-20 requires a
  * CSPRNG server-side; this is a practice client, not the server.
@@ -18,13 +19,25 @@
  */
 import { createInterface } from 'node:readline';
 import { argv, exit, stdin, stdout } from 'node:process';
-import type { Action, Bid, Face, GameState, PlayerId, PlayerView, RevealSummary } from './types.ts';
-import { createMatch } from './state.ts';
-import { reduce } from './reduce.ts';
-import { redactFor } from './redact.ts';
-import { legalBids, minimumLegalBid } from './bids.ts';
-import { totalDiceInPlay } from './query.ts';
-import { makeRng } from './rng.ts';
+import type {
+  Action,
+  Bid,
+  Face,
+  GameState,
+  PlayerId,
+  PlayerView,
+  RevealSummary,
+} from '@liars-dice/engine';
+import {
+  createMatch,
+  legalBids,
+  makeRng,
+  minimumLegalBid,
+  redactFor,
+  reduce,
+  totalDiceInPlay,
+} from '@liars-dice/engine';
+import { decide, profileFor, type BotProfile } from '@liars-dice/bots';
 
 const HUMAN = 'You';
 const PIPS = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'] as const;
@@ -151,23 +164,20 @@ function showHelp(view: PlayerView): void {
 // ─── bots ─────────────────────────────────────────────────────────────────────
 
 /**
- * A random legal action. Deliberately witless — Phase 5 builds the real policy. It leans
- * toward the weak end of the ladder so rounds do not end on the first bid, and it never
- * tries to raise when no legal raise exists (R-09's dead end).
+ * A bot's move, decided from its own redacted view.
+ *
+ * The redaction is not ceremony: `decide` only accepts a `PlayerView`, so handing a bot anything
+ * less blind than what a person sees is not expressible. Each seat keeps one profile for the whole
+ * match, so the table is not three copies of the same opponent.
  */
-function botAction(state: GameState, rng: () => number): Action {
+function botAction(state: GameState, rng: () => number, profile: BotProfile): Action {
   if (state.phase.kind !== 'bidding') return { type: 'advanceRound' };
   const playerId = state.phase.turnId;
-  const options = legalBids(state);
-  const mustBid = state.round.bids.length === 0; // R-06
-  if (options.length === 0) return { type: 'dudo', playerId };
-  if (!mustBid && rng() < 0.22) return { type: 'dudo', playerId };
-  // Draw from the weakest ten raises, skewed hard toward the very weakest. Sampling the
-  // whole ladder uniformly would open every round at fifteen of a face, which is legal
-  // (R-04 caps quantity at the dice in play, nothing lower) but makes for a silly game.
-  const window = Math.min(options.length, 10);
-  const index = Math.min(Math.floor(rng() ** 3 * window), options.length - 1);
-  return { type: 'bid', playerId, bid: options[index] ?? { quantity: 1, face: 2 } };
+  const judgement = decide(redactFor(state, playerId), { profile, rng });
+  if (judgement !== null) return judgement.action;
+  // Unreachable while it is this seat's turn; falling back keeps the loop total.
+  const fallback = minimumLegalBid(state);
+  return fallback === null ? { type: 'dudo', playerId } : { type: 'bid', playerId, bid: fallback };
 }
 
 // ─── the loop ─────────────────────────────────────────────────────────────────
@@ -309,7 +319,7 @@ while (state.phase.kind !== 'ended') {
   const isHuman = turnId === HUMAN && !options.auto;
   if (isHuman) showTable(redactFor(state, HUMAN));
 
-  const action = isHuman ? await humanAction() : botAction(state, botRng);
+  const action = isHuman ? await humanAction() : botAction(state, botRng, profileFor(turnId));
   if (action === null) break; // the human asked to quit
 
   const result = reduce(state, action, { now: now(), rng });

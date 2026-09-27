@@ -10,7 +10,7 @@ import { describe, expect, test } from 'vitest';
  * same one a person drives.
  */
 const run = promisify(execFile);
-const CLI = join(import.meta.dirname, '..', 'src', 'cli.ts');
+const CLI = join(import.meta.dirname, '..', 'src', 'main.ts');
 const play = (...args: string[]) => run(process.execPath, [CLI, ...args], { timeout: 60_000 });
 /**
  * Strip ANSI so assertions read the text rather than the colour codes. The escape

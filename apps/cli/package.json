@@ -1,0 +1,15 @@
+{
+  "name": "@liars-dice/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Terminal client. Play a full match against the bots without a server.",
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@liars-dice/bots": "workspace:*",
+    "@liars-dice/engine": "workspace:*"
+  }
+}

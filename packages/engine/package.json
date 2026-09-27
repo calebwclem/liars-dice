@@ -11,8 +11,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:prop": "vitest run test/properties.test.ts",
-    "cli": "node src/cli.ts"
+    "test:prop": "vitest run test/properties.test.ts"
   },
   "devDependencies": {
     "fast-check": "^4.3.0"

@@ -30,12 +30,13 @@ export default tseslint.config(
   },
 
   {
-    // CLAUDE.md rule 3: the engine is pure. No ambient time, no ambient randomness, no
-    // I/O. Time and randomness arrive through Ctx. The linter enforces it so a future
-    // edit cannot quietly reintroduce impurity — see also the R-20 tests, which stub
-    // Math.random and Date.now to throw.
-    files: ['packages/engine/src/**/*.ts'],
-    ignores: ['packages/engine/src/cli.ts'],
+    // CLAUDE.md rule 3: the engine is pure. No ambient time, no ambient randomness, no I/O. Time
+    // and randomness arrive through Ctx. The linter enforces it so a future edit cannot quietly
+    // reintroduce impurity — see also the R-20 tests, which stub Math.random and Date.now to throw.
+    //
+    // The same applies to the bots: a policy that reached for Math.random would still play, but it
+    // would stop replaying, and a match you cannot reproduce is a match you cannot debug.
+    files: ['packages/engine/src/**/*.ts', 'packages/bots/src/**/*.ts'],
     rules: {
       'no-restricted-globals': [
         'error',
@@ -59,8 +60,8 @@ export default tseslint.config(
   },
 
   {
-    // The CLI is the one impure entry point: it owns stdio, the real clock, and the seed.
-    files: ['packages/engine/src/cli.ts'],
+    // The CLI is an impure entry point by design: it owns stdio, the real clock, and the seed.
+    files: ['apps/cli/src/**/*.ts'],
     rules: { 'no-console': 'off' },
   },
 
