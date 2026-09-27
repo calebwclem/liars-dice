@@ -43,16 +43,33 @@ export QUEUE_BACKFILL_MS=5000
 export AUTH_SECRET="${AUTH_SECRET:-$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')}"
 export LOG_LEVEL="${LOG_LEVEL:-info}"
 
+SERVER=""
 cleanup() {
   echo
   echo "==> stopping"
   xcrun simctl terminate "$DEVICE" com.liarsdice.app 2>/dev/null || true
+  # Kill the whole server process group, not just the pnpm wrapper: pnpm spawns node as a
+  # child, so killing the job alone leaves node holding the port and the *next* run of this
+  # script fails to bind. Which is exactly what happened the first time.
+  if [ -n "$SERVER" ]; then
+    kill -- "-$SERVER" 2>/dev/null || kill "$SERVER" 2>/dev/null || true
+  fi
+  pkill -f 'node .*src/index.ts' 2>/dev/null || true
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
+
+# Fail early and clearly rather than letting the server die on an address clash.
+if lsof -nP -iTCP:"${PORT:-8080}" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "error: something is already listening on :${PORT:-8080}." >&2
+  echo "       a previous run may still be up — try: pkill -f 'node .*src/index.ts'" >&2
+  exit 1
+fi
 
 echo "==> starting the server on :${PORT:-8080}"
+set -m                      # own process group, so cleanup can take the whole tree down
 pnpm dev:server &
 SERVER=$!
+set +m
 sleep 2
 
 echo "==> launching the app"
