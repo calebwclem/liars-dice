@@ -70,7 +70,7 @@ extension ProtocolEvent {
         case .bidMade(let event):
             "\(naming.subject(event.playerId, "bids", "bid")) \(event.bid.spoken)"
         case .dudoCalled(let event):
-            "\(naming.subject(event.playerId, "calls", "call")) dudo on "
+            "\(naming.subject(event.playerId, "challenges", "challenge")) "
                 + "\(naming.possessive(event.bidderId)) \(event.bid.spoken)"
         case .diceRevealed(let event):
             "Revealed: \(event.reveal.bid.face.spoken(count: event.reveal.actualCount)) — "

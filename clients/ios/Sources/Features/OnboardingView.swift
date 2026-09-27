@@ -67,11 +67,11 @@ struct OnboardingView: View {
                 )
             ),
             Card(
-                title: "Dudo ends the round",
+                title: "Challenging ends the round",
                 body: """
-                    Call dudo and every cup comes up. If the bid was good the challenger loses a \
-                    die; if it was a lie the bidder does. Lose your last die and you are out — \
-                    last player standing wins.
+                    Challenge a bid and every cup comes up. If the bid was good the challenger \
+                    loses a die; if it was a lie the bidder does. Lose your last die and you are \
+                    out — last player standing wins.
                     """,
                 art: AnyView(
                     HStack(spacing: 10) {

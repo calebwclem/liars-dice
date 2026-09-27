@@ -124,9 +124,7 @@ function showReveal(reveal: RevealSummary): void {
   say(`${BOLD}── Reveal ──${RESET}`);
   const wildNote = reveal.wildOnes ? '' : `  ${DIM}(ones not wild)${RESET}`;
   const whose = conj(reveal.bidderId, `${reveal.bidderId}'s`, 'your');
-  say(
-    `${reveal.challengerId} called dudo on ${whose} bid of ` + `${bidText(reveal.bid)}${wildNote}`,
-  );
+  say(`${reveal.challengerId} challenged ${whose} bid of ` + `${bidText(reveal.bid)}${wildNote}`);
   for (const [playerId, dice] of Object.entries(reveal.hands)) {
     const marked = dice.map((d) => {
       const counts = d === reveal.bid.face || (reveal.wildOnes && reveal.bid.face !== 1 && d === 1);
@@ -155,7 +153,7 @@ function showHelp(view: PlayerView): void {
   say();
   say(`${DIM}  <quantity> <face>   raise, e.g. "4 5" for four fives${RESET}`);
   if (view.round.bids.length > 0) {
-    say(`${DIM}  d                   dudo — call the standing bid a lie${RESET}`);
+    say(`${DIM}  c                   challenge — call the standing bid a lie${RESET}`);
   }
   say(`${DIM}  l                   list every legal raise${RESET}`);
   say(`${DIM}  q                   quit${RESET}`);
@@ -252,7 +250,7 @@ say(
   `${BOLD}Liar's Dice${RESET} ${DIM}— seed ${String(options.seed)}, ` +
     `${String(options.players)} players, 5 dice each${RESET}`,
 );
-say(`${DIM}Ones are wild. Raise or call dudo. "?" for help.${RESET}`);
+say(`${DIM}Ones are wild. Raise, or challenge the bid. "?" for help.${RESET}`);
 
 let state = opening.value.state;
 
@@ -261,7 +259,7 @@ async function humanAction(): Promise<Action | null> {
   const view = redactFor(state, HUMAN);
   const standing = view.round.bids.length > 0;
   for (;;) {
-    const raw = await nextLine(`${BOLD}your move${RESET} ${DIM}(q×face, d, l, ?)${RESET} > `);
+    const raw = await nextLine(`${BOLD}your move${RESET} ${DIM}(q×face, c, l, ?)${RESET} > `);
     if (raw === null) return null; // stdin ended
     const answer = raw.trim().toLowerCase();
 
@@ -281,7 +279,8 @@ async function humanAction(): Promise<Action | null> {
       );
       continue;
     }
-    if (answer === 'd' || answer === 'dudo') {
+    // `c` for challenge is the word the UI uses now; `d` still works out of habit.
+    if (answer === 'c' || answer === 'd' || answer === 'challenge' || answer === 'dudo') {
       if (!standing) {
         // R-06: the round's first player has nothing to challenge.
         say(`${RED}  you open the round — you must bid${RESET}`);
@@ -348,7 +347,7 @@ while (state.phase.kind !== 'ended') {
     }
     if (event.type === 'dudoCalled') {
       const calls = conj(event.playerId, 'calls', 'call');
-      say(`  ${BOLD}${event.playerId} ${calls} dudo!${RESET}`);
+      say(`  ${BOLD}${event.playerId} ${calls}!${RESET}`);
     }
     if (event.type === 'palificoArmed') {
       const is = conj(event.playerId, 'is', 'are');

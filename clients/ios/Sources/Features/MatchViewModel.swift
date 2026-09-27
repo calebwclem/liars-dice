@@ -302,7 +302,7 @@ final class MatchViewModel {
         if iAmBotControlled { return "A bot is playing your seat." }
         guard snapshot?.bidOptions != nil else { return nil }
         if biddableFaces.isEmpty {
-            return "There is no higher bid left to make — your only move is to call dudo."
+            return "There is no higher bid left to make — challenging is your only move."
         }
         return nil
     }

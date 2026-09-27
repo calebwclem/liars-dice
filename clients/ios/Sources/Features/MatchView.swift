@@ -155,7 +155,8 @@ struct MatchView: View {
     private var yourTurn: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let blocked = match.bidBlockedReason {
-                // R-09's dead end, most often: no legal raise exists, so dudo is the only move.
+                // R-09's dead end, most often: no legal raise exists, so challenging is all
+                // that is left.
                 Label(blocked, systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(Theme.brass)
@@ -237,7 +238,7 @@ struct MatchView: View {
             Button {
                 match.callDudo()
             } label: {
-                Text("Dudo").frame(maxWidth: .infinity)
+                Text("Challenge").frame(maxWidth: .infinity)
             }
             .buttonStyle(TableButton(tint: Theme.alarm))
             .disabled(!match.canChallenge)
@@ -404,7 +405,7 @@ struct RevealPanel: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("\(name(reveal.challengerId)) called dudo")
+            Text("\(name(reveal.challengerId)) challenged")
                 .font(.system(.title3, design: .serif, weight: .semibold))
             HStack(spacing: 6) {
                 Text("on \(name(reveal.bidderId))'s")

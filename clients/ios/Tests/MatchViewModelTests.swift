@@ -592,12 +592,12 @@ final class EventCopyTests: XCTestCase {
         let dudo = ProtocolEvent.dudoCalled(
             .init(playerId: "me", bidderId: "dana", bid: Bid(quantity: 4, face: .three))
         )
-        XCTAssertEqual(dudo.summary(naming), "You call dudo on Player dana's 4 threes")
+        XCTAssertEqual(dudo.summary(naming), "You challenge Player dana's 4 threes")
 
         let against = ProtocolEvent.dudoCalled(
             .init(playerId: "dana", bidderId: "me", bid: Bid(quantity: 4, face: .three))
         )
-        XCTAssertEqual(against.summary(naming), "Player dana calls dudo on your 4 threes")
+        XCTAssertEqual(against.summary(naming), "Player dana challenges your 4 threes")
     }
 
     func testTheFeedSaysFacesInWordsRatherThanGlyphs() {
