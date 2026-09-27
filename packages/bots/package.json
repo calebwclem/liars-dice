@@ -1,0 +1,19 @@
+{
+  "name": "@liars-dice/bots",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bot policies. Pure: take a redacted view, return an action.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@liars-dice/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "^4.3.0"
+  }
+}
