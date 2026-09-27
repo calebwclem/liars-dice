@@ -11,8 +11,7 @@ struct OnboardingView: View {
 
     @State private var page = 0
 
-    private struct Card: Identifiable {
-        let id = UUID()
+    private struct Card {
         let title: String
         let body: String
         let art: AnyView
@@ -94,7 +93,11 @@ struct OnboardingView: View {
             FeltBackground()
             VStack(spacing: 0) {
                 TabView(selection: $page) {
-                    ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                    // Identified by position, not by a generated id. `cards` is computed, so it
+                    // minted a fresh UUID per card on every render — SwiftUI then saw four new
+                    // pages each time and the selection wandered, landing a first-run player on
+                    // the last card.
+                    ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
                         VStack(spacing: 24) {
                             Spacer()
                             card.art
