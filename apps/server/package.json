@@ -12,6 +12,7 @@
     "fixtures": "node scripts/fixtures.ts"
   },
   "dependencies": {
+    "@liars-dice/bots": "workspace:*",
     "@liars-dice/engine": "workspace:*",
     "@liars-dice/protocol": "workspace:*",
     "ws": "^8.21.3",
