@@ -326,9 +326,11 @@ describe('R-04..R-09: the legal set a client is told about', () => {
               face: option.face,
             }));
           });
-          const enumerated = legalBids(state);
-          expect(fromOptions).toHaveLength(enumerated.length);
-          for (const candidate of enumerated) expect(fromOptions).toContainEqual(candidate);
+          // One assertion per state, over canonical keys. Asserting membership bid by bid instead
+          // meant up to 180 `expect` calls per state, each scanning a 180-element array with deep
+          // equality — which passed locally at two seconds and timed out on a CI runner at five.
+          const key = (bid: Bid) => `${String(bid.quantity)}:${String(bid.face)}`;
+          expect(fromOptions.map(key).sort()).toEqual(legalBids(state).map(key).sort());
         }
       }),
       { numRuns: 40 },
