@@ -362,6 +362,32 @@ describe('R-04..R-09: the legal set a client is told about', () => {
     ).toEqual([6]);
   });
 
+  test('R-04/R-08/R-13: the options offered never depend on anybody\'s dice', () => {
+    // The bid picker is drawn straight from `bidOptions`, so if those minimums shifted with the
+    // contents of the cups the picker would be a window into them: a round that offered you
+    // unusually little would be telling you something about what the table is holding. They are
+    // derived from public facts alone — the standing bid, the locked face, and how many dice are
+    // in play. Re-rolling every hand underneath a state must not move a single minimum.
+    fc.assert(
+      fc.property(seeds, playerCounts, seeds, (seed, n, reroll) => {
+        const { states } = playRandomMatch({ seed, playerIds: ids(n) });
+        const { rng } = ctx(reroll);
+        for (const state of states) {
+          if (state.phase.kind !== 'bidding') continue;
+          const hands = Object.fromEntries(
+            Object.entries(state.round.hands).map(([id, dice]) => [
+              id,
+              dice.map(() => (Math.floor(rng() * 6) + 1) as Face),
+            ]),
+          );
+          const rerolled: GameState = { ...state, round: { ...state.round, hands } };
+          expect(bidOptionsOf(rerolled)).toEqual(bidOptionsOf(state));
+        }
+      }),
+      { numRuns: 40 },
+    );
+  });
+
   test('R-13: during palifico only the locked face has a minimum', () => {
     const state = makeState({
       hands: { a: [1, 2], b: [3, 4] },

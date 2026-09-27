@@ -58,7 +58,10 @@ struct MatchView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Round \(match.roundNumber)")
                     .font(.system(.title2, design: .serif, weight: .semibold))
-                Text(match.totalDiceInPlay == 1 ? "1 die in play" : "\(match.totalDiceInPlay) dice in play")
+                // R-07 stated even when it is not in question. A player who only ever sees
+                // "ones are not wild" during palifico reads it as a fact about the game rather
+                // than about this round; the contrast is what makes the badge legible.
+                Text(diceInPlayLine)
                     .font(.caption)
                     .foregroundStyle(Theme.inkSoft)
             }
@@ -67,6 +70,12 @@ struct MatchView: View {
                 PalificoBadge(lockedFace: match.lockedFace)
             }
         }
+    }
+
+    private var diceInPlayLine: String {
+        let dice = match.totalDiceInPlay == 1 ? "1 die in play" : "\(match.totalDiceInPlay) dice in play"
+        // During palifico the badge carries the wildness rule, so do not say it twice.
+        return match.isPalifico ? dice : dice + " · ones are wild"
     }
 
     // MARK: - Seats
@@ -342,6 +351,13 @@ private struct BidChip: View {
 private struct PalificoBadge: View {
     let lockedFace: Face?
 
+    private var subtitle: String {
+        // `guard let x` with no `= x` rebinds the optional to a non-optional of the same name for
+        // the rest of the scope — Swift's answer to the `if (x != null)` narrowing you get in Java.
+        guard let lockedFace else { return "this round, ones are not wild" }
+        return "this round, ones are not wild · \(lockedFace.spoken) only"
+    }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
             Text("PALIFICO")
@@ -349,13 +365,16 @@ private struct PalificoBadge: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(Theme.brass.opacity(0.35), in: .capsule)
-            // R-13, said as a situation rather than as a rule number.
-            Text(lockedFace == nil ? "ones are not wild" : "ones are not wild · face locked")
+            // R-13, said as a situation rather than as a rule number. "This round" is the
+            // load-bearing half: the player has just spent sixteen rounds with wild ones and
+            // nothing else on screen says the suspension is temporary. The locked face is named
+            // rather than described — "face locked" does not tell you which face.
+            Text(subtitle)
                 .font(.caption2)
                 .foregroundStyle(Theme.inkSoft)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Palifico round. Ones are not wild and the face is locked.")
+        .accessibilityLabel("Palifico round. \(subtitle).")
     }
 }
 

@@ -53,10 +53,14 @@ struct OnboardingView: View {
             ),
             Card(
                 title: "Ones are wild",
+                // No Markdown in here. `Text` only parses it from a string *literal*
+                // (a LocalizedStringKey); handed a String property it takes the plain overload,
+                // so "*on*" reached the screen with its asterisks showing.
                 body: """
                     A one counts as any face, so "four fives" is satisfied by fives and ones \
-                    alike. Bidding *on* ones is the exception — that counts only actual ones, \
-                    which makes it a weak claim. The app only ever offers you bids that are legal.
+                    alike. Bidding on ones themselves is the exception — that counts only real \
+                    ones. One round suspends this: when a player is down to their last die the \
+                    next round is palifico, ones stop being wild, and the table says so.
                     """,
                 art: AnyView(
                     HStack(spacing: 8) {
