@@ -1,33 +1,23 @@
 /**
  * R-04 through R-09: what counts, and what counts as a raise.
  *
- * The whole of R-08 and R-09 reduces to one comparison. Map every bid to a two-part key
+ * R-08 is one comparison. Order bids by `[quantity, face]` and a raise is legal exactly when
+ * the new pair is lexicographically greater than the standing one:
  *
- *     key(q, f) = wildOnes && f === 1  ?  [2q, 7]  :  [q, f]
+ *   higher quantity, any face   [q',f'] > [q,f] whenever q' > q
+ *   same quantity, higher face  ties on quantity, the higher face wins
+ *   anything else               not a raise
  *
- * and a raise is legal exactly when the new key is lexicographically greater than the
- * standing one. Ones sit at twice their quantity because a wild one is worth two of
- * anything else (R-07), and at face rank 7 because a ones bid beats every ordinary bid
- * that ties it on quantity.
+ * R-09 says ones have no special standing in bidding, so there is nothing further to encode:
+ * face 1 is simply the lowest face. Ones remain wild for *counting* (R-07) — that is
+ * `countFace`'s business, below, and it is the one place the two rules pull apart.
  *
- * That single rule reproduces the document line for line:
- *
- *   R-08  (q,f) -> (q',f') with q' > q, any face      [q',f'] > [q,f] whenever q' > q
- *         (q,f) -> (q,f')  with f' > f                ties on quantity, higher face wins
- *   R-09  onto ones: q' >= ceil(q/2)                  2q' > q  <=>  q' >= ceil(q/2)
- *         off ones:  q' >= 2q + 1                     q' > 2q, since f' <= 6 < 7
- *         ones over ones: q' > q                      2q' > 2q
- *
- * During a palifico round `wildOnes` is false (R-13), so ones lose their special rank and
- * the key is simply [q, f] for every face — and since R-13 also locks the face, what is
- * left is a plain quantity ladder.
+ * An earlier ruleset gave ones a halved quantity to switch to and a doubled one to leave,
+ * which needed ones ranked at `[2q, 7]`. It was removed deliberately; see docs/DECISIONS.md.
  */
 import type { Bid, Face, GameState, PlayerId, PlayerView, Result } from './types.ts';
 import { err, FACES, ok } from './types.ts';
 import { lockedFace, standingBid, totalDiceInPlay } from './query.ts';
-
-/** Rank given to face 1 when ones are wild: above every real face. */
-const ONES_RANK = 7;
 
 export const isFace = (value: number): value is Face =>
   Number.isInteger(value) && value >= 1 && value <= 6;
@@ -88,19 +78,15 @@ export function countFace(
   return count;
 }
 
-export const bidKey = (bid: Bid, wildOnes: boolean): readonly [number, number] =>
-  wildOnes && bid.face === 1 ? [bid.quantity * 2, ONES_RANK] : [bid.quantity, bid.face];
+export const bidKey = (bid: Bid): readonly [number, number] => [bid.quantity, bid.face];
 
 /** Negative if `a` is the weaker bid, positive if stronger, 0 if they are the same bid. */
-export function compareBids(a: Bid, b: Bid, wildOnes: boolean): number {
-  const [aq, af] = bidKey(a, wildOnes);
-  const [bq, bf] = bidKey(b, wildOnes);
-  return aq !== bq ? aq - bq : af - bf;
+export function compareBids(a: Bid, b: Bid): number {
+  return a.quantity !== b.quantity ? a.quantity - b.quantity : a.face - b.face;
 }
 
-/** R-08 / R-09: is `next` a legal raise over `prev`? */
-export const isRaise = (prev: Bid, next: Bid, wildOnes: boolean): boolean =>
-  compareBids(prev, next, wildOnes) < 0;
+/** R-08: is `next` a legal raise over `prev`? */
+export const isRaise = (prev: Bid, next: Bid): boolean => compareBids(prev, next) < 0;
 
 /**
  * Every reason a bid can be rejected, in the order a player would care about: malformed
@@ -117,7 +103,7 @@ export function checkBidIn(ctx: BidContext, next: Bid): Result<true> {
   if (ctx.lockedFace !== null && next.face !== ctx.lockedFace) {
     return err('PALIFICO_FACE_LOCKED'); // R-13
   }
-  if (!isRaise(standing, next, !ctx.palifico)) return err('BID_TOO_LOW');
+  if (!isRaise(standing, next)) return err('BID_TOO_LOW');
   return ok(true);
 }
 
@@ -132,7 +118,6 @@ export const isLegalBid = (state: GameState, bid: Bid): boolean => checkBid(stat
  * so this is at most `6 * totalDiceInPlay` candidates — 180 in a full six-player match.
  */
 export function legalBidsIn(ctx: BidContext): readonly Bid[] {
-  const wildOnes = !ctx.palifico;
   const out: Bid[] = [];
   for (let quantity = 1; quantity <= ctx.diceInPlay; quantity += 1) {
     for (const face of FACES) {
@@ -140,7 +125,7 @@ export function legalBidsIn(ctx: BidContext): readonly Bid[] {
       if (checkBidIn(ctx, candidate).ok) out.push(candidate);
     }
   }
-  return out.sort((a, b) => compareBids(a, b, wildOnes));
+  return out.sort((a, b) => compareBids(a, b));
 }
 
 export const legalBids = (state: GameState): readonly Bid[] => legalBidsIn(bidContextOf(state));

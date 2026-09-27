@@ -20,18 +20,16 @@ describe('Deferred to Phase 2 — the server owns the clock and the sockets', ()
   test.todo('R-21: provable fairness — the document marks it v1.1, and the brief defers it');
 
   test('the minimum legal raise is a rules question, so the engine answers it', () => {
-    // What the Phase 2 auto-bid will call. (1,2) is the weakest bid in the game: reaching
-    // ones from it costs ceil(1/2) = 1, while leaving ones costs 2q+1 = 3.
-    expect(minimumLegalBid(fourPlayers([[1], [2], [3], [4]]))).toEqual(bid(1, 2));
+    // What the Phase 2 auto-bid calls. (1,1) is the weakest bid in the game: the lowest
+    // quantity of the lowest face.
+    expect(minimumLegalBid(fourPlayers([[1], [2], [3], [4]]))).toEqual(bid(1, 1));
 
     const standing = makeState({
       hands: { a: [1, 2, 3] as Face[], b: [4, 5, 6] as Face[] },
       bids: [{ playerId: 'a', bid: bid(3, 4) }],
       turnId: 'b',
     });
-    // Over (3,4) the cheapest raise is (3,5) — one face up at the same quantity. The
-    // ones conversion is available at just two dice, but two wild ones outrank three
-    // fives, so it is the more expensive move despite the smaller number.
+    // Over (3,4) the cheapest raise is (3,5) — one face up at the same quantity.
     expect(minimumLegalBid(standing)).toEqual(bid(3, 5));
   });
 });

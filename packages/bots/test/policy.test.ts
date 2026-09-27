@@ -144,13 +144,13 @@ describe('Judgement', () => {
     expect(judgement.action.bid.quantity).toBeLessThan(8);
   });
 
-  test('R-09: with no legal raise left, it challenges because nothing else is legal', () => {
-    // Two players on one die each, standing (2, ones): ones cannot go higher and a non-one face
-    // would need five dice that do not exist.
+  test('R-04/R-08: with no legal raise left, it challenges because nothing else is legal', () => {
+    // Two players on one die each, standing (2, sixes): the cap is two and six is the top face,
+    // so the ladder has run out.
     const view = viewOf({
-      myDice: [1],
+      myDice: [6],
       totalDiceInPlay: 2,
-      bids: [{ playerId: 'them', bid: { quantity: 2, face: 1 } }],
+      bids: [{ playerId: 'them', bid: { quantity: 2, face: 6 } }],
     });
     const judgement = decide(view, { profile: never, rng: fixed(0.0) });
     expect(judgement?.action.type).toBe('dudo');
@@ -225,20 +225,20 @@ describe('Bluffing', () => {
     expect(judgement?.bluffed).toBe(false);
   });
 
-  test('a bluff is still a bid it would rather make than any other', () => {
-    // The bluff is the decision to raise, not the choice of bid. Taking the *cheapest* raise
-    // instead looks sensible until R-09 is involved: leaving a bid of ones costs 2q+1, so the
-    // cheapest raise over "four ones" is nine of something, which everybody calls. That was a real
-    // bug, visible only from watching a match.
+  test('a bluff is still the likeliest bid available, not the cheapest', () => {
+    // The bluff is the decision to raise, not the choice of bid. The weakest legal raise over
+    // "four ones" is "four twos", but with three fours in hand "four fours" is far likelier and
+    // is what it should say.
     const view = viewOf({
-      myDice: [3, 1, 6, 5, 4],
+      myDice: [4, 4, 4, 5, 6],
       totalDiceInPlay: 20,
       bids: [{ playerId: 'them', bid: { quantity: 4, face: 1 } }],
     });
     const judgement = decide(view, { profile: always, rng: fixed(0) });
     expect(judgement?.action.type).toBe('bid');
     if (judgement?.action.type !== 'bid') return;
-    expect(judgement.action.bid).toEqual({ quantity: 5, face: 1 });
+    expect(judgement.action.bid.face).toBe(4);
+    expect(judgement.action.bid.quantity).toBeGreaterThanOrEqual(4);
   });
 });
 

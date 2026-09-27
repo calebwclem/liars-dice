@@ -184,96 +184,92 @@ describe('R-08 raise legality', () => {
 
   test('R-08: face 6 is the ceiling, so only quantity can rise from (q,6)', () => {
     expect(raise(bid(3, 6), bid(4, 6))).toBe(true);
+    expect(raise(bid(3, 6), bid(4, 1))).toBe(true); // quantity up frees the face
     expect(raise(bid(3, 6), bid(3, 6))).toBe('BID_TOO_LOW');
-    expect(raise(bid(3, 6), bid(2, 1))).toBe(true); // R-09: ceil(3/2) = 2
+    expect(raise(bid(3, 6), bid(2, 1))).toBe('BID_TOO_LOW'); // no conversion any more
   });
 });
 
-describe('R-09 the ones conversions', () => {
-  test('R-09: switching to ones needs at least ceil(q/2)', () => {
-    expect(raise(bid(5, 3), bid(3, 1))).toBe(true); // ceil(5/2) = 3
+describe('R-09 ones have no special standing in bidding', () => {
+  test('R-09: switching to ones costs exactly what switching to any other face costs', () => {
+    // No halved quantity. From (5,3) the only way onto ones is to raise the quantity, because
+    // face 1 is below face 3 — the same as it would be for twos.
+    expect(raise(bid(5, 3), bid(6, 1))).toBe(true);
+    expect(raise(bid(5, 3), bid(5, 1))).toBe('BID_TOO_LOW');
+    expect(raise(bid(5, 3), bid(3, 1))).toBe('BID_TOO_LOW');
     expect(raise(bid(5, 3), bid(2, 1))).toBe('BID_TOO_LOW');
-    expect(raise(bid(4, 3), bid(2, 1))).toBe(true); // ceil(4/2) = 2
-    expect(raise(bid(4, 3), bid(1, 1))).toBe('BID_TOO_LOW');
-    expect(raise(bid(1, 3), bid(1, 1))).toBe(true); // ceil(1/2) = 1
+    expect(raise(bid(5, 3), bid(6, 2))).toBe(true);
   });
 
-  test('R-09: any quantity at or above the minimum is legal, not just the minimum', () => {
-    for (let q = 3; q <= 20; q++) expect(raise(bid(5, 3), bid(q, 1))).toBe(true);
-  });
-
-  test('R-09: switching off ones needs 2q+1, with any face', () => {
-    expect(raise(bid(3, 1), bid(7, 2))).toBe(true); // 2*3+1 = 7
-    expect(raise(bid(3, 1), bid(7, 6))).toBe(true);
-    expect(raise(bid(3, 1), bid(6, 6))).toBe('BID_TOO_LOW');
-    expect(raise(bid(3, 1), bid(8, 2))).toBe(true);
-    expect(raise(bid(1, 1), bid(3, 2))).toBe(true); // 2*1+1 = 3
-    expect(raise(bid(1, 1), bid(2, 6))).toBe('BID_TOO_LOW');
-  });
-
-  test('R-09: ones over ones follows R-08 — the quantity must increase', () => {
+  test('R-09: leaving ones costs exactly what leaving any other face costs', () => {
+    // No doubling. From (3,1) a higher face at the same quantity is enough, because ones are
+    // the lowest face and nothing special.
+    expect(raise(bid(3, 1), bid(3, 2))).toBe(true);
+    expect(raise(bid(3, 1), bid(3, 6))).toBe(true);
     expect(raise(bid(3, 1), bid(4, 1))).toBe(true);
+    expect(raise(bid(3, 1), bid(2, 6))).toBe('BID_TOO_LOW');
     expect(raise(bid(3, 1), bid(3, 1))).toBe('BID_TOO_LOW');
-    expect(raise(bid(3, 1), bid(2, 1))).toBe('BID_TOO_LOW');
   });
 
-  test('R-09: the round trip off ones and back is not a way to stand still', () => {
-    // (3,1) -> (7,4) -> the cheapest ones bid is ceil(7/2) = 4, above the 3 we left.
-    expect(raise(bid(7, 4), bid(4, 1))).toBe(true);
-    expect(raise(bid(7, 4), bid(3, 1))).toBe('BID_TOO_LOW');
+  test('R-09: ones sit below every other face at the same quantity', () => {
+    for (const face of [2, 3, 4, 5, 6] as Face[]) {
+      // Up from ones is a raise...
+      expect(raise(bid(4, 1), bid(4, face))).toBe(true);
+      // ...and down to ones is not.
+      expect(raise(bid(4, face), bid(4, 1))).toBe('BID_TOO_LOW');
+    }
   });
 
-  test('R-09: when 2q+1 exceeds the dice in play there is no legal raise left', () => {
-    // Two players, one die each. (2,1) is maximal: ones cannot go higher, and a
-    // non-one face would need 2*2+1 = 5 dice, which do not exist.
+  test('R-09: a ones bid is never cheaper than the face above it', () => {
+    // The point of the amendment, stated as a test: there is no quantity at which switching to
+    // ones undercuts the ladder. Bidding ones is a weak move, never a cheap one.
+    const dice = totalDiceInPlay(after(bid(4, 3)));
+    for (let quantity = 1; quantity <= dice; quantity += 1) {
+      const onesLegal = raise(bid(4, 3), bid(quantity, 1)) === true;
+      const twosLegal = raise(bid(4, 3), bid(quantity, 2)) === true;
+      // Anything legal on ones is legal on twos too, so ones can never be the cheaper route.
+      expect(!onesLegal || twosLegal).toBe(true);
+    }
+  });
+
+  test('R-04/R-08: at the cap on sixes there is no legal raise left', () => {
+    // The only dead end left once the conversions are gone: the top of the ladder.
     const state = makeState({
       hands: { a: [1], b: [1] },
-      bids: [{ playerId: 'a', bid: bid(2, 1) }],
+      bids: [{ playerId: 'a', bid: bid(2, 6) }],
       turnId: 'b',
     });
+    expect(totalDiceInPlay(state)).toBe(2);
     expect(legalBids(state)).toEqual([]);
     expect(minimumLegalBid(state)).toBeNull();
-    expect(reduce(state, { type: 'bid', playerId: 'b', bid: bid(3, 1) }, ctx()).ok).toBe(false);
-    // Dudo is the only remaining move, and it must work.
+    expect(reduce(state, { type: 'bid', playerId: 'b', bid: bid(3, 6) }, ctx()).ok).toBe(false);
+    // Challenging is the only remaining move, and it must work.
     expect(reduce(state, { type: 'dudo', playerId: 'b' }, ctx()).ok).toBe(true);
   });
 });
 
 describe('Bid ordering helpers', () => {
-  test('R-08/R-09: minimumLegalBid opens at (1,2), the weakest bid in the game', () => {
-    // (1,1) is stronger than (1,2): leaving ones costs 2q+1 = 3, while reaching ones
-    // from (1,2) costs only ceil(1/2) = 1.
-    expect(minimumLegalBid(fourPlayers(HANDS))).toEqual(bid(1, 2));
+  test('R-08: minimumLegalBid opens at (1,1), the weakest bid in the game', () => {
+    // One of the lowest face. With R-09 gone the ordering is plain: ones are simply the bottom.
+    expect(minimumLegalBid(fourPlayers(HANDS))).toEqual(bid(1, 1));
   });
 
-  test('R-08/R-09: legalBids lists every legal raise, weakest first', () => {
-    // Standing (19,6) with 20 dice on the table. Non-ones must reach quantity 20;
-    // ones need only ceil(19/2) = 10, and a ones bid outranks any non-one bid of
-    // twice its quantity, which is why (10,1) sorts after (20,6).
+  test('R-08: legalBids lists every legal raise, weakest first', () => {
+    // Standing (19,6) with 20 dice on the table. Only quantity 20 clears it, at any face.
     expect(legalBids(after(bid(19, 6)))).toEqual([
+      bid(20, 1),
       bid(20, 2),
       bid(20, 3),
       bid(20, 4),
       bid(20, 5),
       bid(20, 6),
-      bid(10, 1),
-      bid(11, 1),
-      bid(12, 1),
-      bid(13, 1),
-      bid(14, 1),
-      bid(15, 1),
-      bid(16, 1),
-      bid(17, 1),
-      bid(18, 1),
-      bid(19, 1),
-      bid(20, 1),
     ]);
   });
 
-  test('R-09: the cheapest raise over a high non-one bid is the ones conversion', () => {
-    expect(minimumLegalBid(after(bid(19, 6)))).toEqual(bid(20, 2));
-    // ...but by quantity, ones are far cheaper — 10 dice against 20.
-    expect(legalBids(after(bid(19, 6))).find((b) => b.face === 1)).toEqual(bid(10, 1));
+  test('R-08: the cheapest raise is one more of the lowest face', () => {
+    expect(minimumLegalBid(after(bid(19, 6)))).toEqual(bid(20, 1));
+    // And mid-ladder, the cheapest raise is the next face up at the same quantity.
+    expect(minimumLegalBid(after(bid(4, 3)))).toEqual(bid(4, 4));
   });
 
   test('R-08: every bid legalBids offers is accepted by reduce, and no other is', () => {

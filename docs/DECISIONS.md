@@ -414,3 +414,35 @@ many side effects — and CLAUDE.md is unambiguous that the engine is a pure lib
 dev-dependency route would have kept the CI check passing while making the claim untrue. A side
 benefit: with the CLI gone, the lint rules banning `Date` and `Math.random` inside the engine need
 no exemption at all, and now cover the bots too.
+
+---
+
+## 2026-09-27 — R-09 removed: ones have no special standing in bidding
+
+**Decision:** A raise is R-08 and nothing else — same quantity at a higher face, or a higher
+quantity at any face. The conversions are gone: no `ceil(q/2)` to switch onto ones, no `2q+1` to
+leave them. Face 1 is simply the lowest face. `docs/RULES.md` R-09 now says so.
+
+**Alternatives:** Keeping the standard Perudo conversions and explaining them in the app; removing
+the conversions *and* the wild ones, leaving six equal faces.
+
+**Why:** The owner played a match and the conversions read as broken — "4 fours" followed by
+"2 ones" looks like the quantity went backwards, because it did. The rule is real Perudo and the
+engine implemented it correctly, but a rule that has to be explained before a player can tell
+legal from broken is a cost, and this one was being paid every round.
+
+The consequence was stated before the change and accepted: ones stay wild for *counting* (R-07),
+but a bid on ones counts only ones, so at a given quantity it is half as likely as any other face
+and now costs exactly as much. Bidding ones is therefore dominated. Measured over 400 bot matches
+after the change, ones fell to **1.8% of all bids** — the face has effectively left the bidding.
+That is the price of the simplicity, and it is the right way round to pay it: the game is easier to
+learn and one option is dead, rather than harder to learn with every option alive.
+
+Two things fell out of it. The bid comparator is now plain `[quantity, face]`, so `compareBids` no
+longer needs to know whether ones are wild — the last place where the counting rule and the bidding
+rule were entangled. And the only remaining dead end is the top of the ladder: `(cap, sixes)`, where
+challenging is the only legal move.
+
+**If this is ever revisited**, the honest middle option is the one not taken: keep the conversions
+and make the app teach them at the moment they apply — the bid picker already knows the minimum for
+every face and could say why it is what it is.

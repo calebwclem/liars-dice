@@ -187,23 +187,26 @@ describe('R-08/R-09 checked against the arithmetic in the document', () => {
   const quantities = fc.integer({ min: 1, max: 14 });
   const nonOneFaces = fc.constantFrom<Face>(2, 3, 4, 5, 6);
 
-  test('R-09: the cheapest ones bid over (q, f) is exactly ceil(q/2)', () => {
+  test('R-09: reaching ones costs one more die, like every other face below', () => {
+    // No halved quantity. Ones are the lowest face, so from any other face they need q+1 —
+    // the same as any face at or below the standing one.
     fc.assert(
       fc.property(quantities, nonOneFaces, (q, f) => {
-        expect(minQuantityFor(bid(q, f), 1)).toBe(Math.ceil(q / 2));
+        expect(minQuantityFor(bid(q, f), 1)).toBe(q + 1);
       }),
     );
   });
 
-  test('R-09: the cheapest non-one bid over (q, 1) is exactly 2q+1', () => {
+  test('R-09: leaving ones costs nothing extra — a higher face at the same quantity does it', () => {
+    // No doubling. Every face above ones clears a ones bid at the same quantity.
     fc.assert(
       fc.property(quantities, nonOneFaces, (q, f) => {
-        expect(minQuantityFor(bid(q, 1), f)).toBe(2 * q + 1);
+        expect(minQuantityFor(bid(q, 1), f)).toBe(q);
       }),
     );
   });
 
-  test('R-09: ones over ones needs exactly one more die', () => {
+  test('R-08: ones over ones needs exactly one more die', () => {
     fc.assert(
       fc.property(quantities, (q) => {
         expect(minQuantityFor(bid(q, 1), 1)).toBe(q + 1);
@@ -226,9 +229,9 @@ describe('R-08/R-09 checked against the arithmetic in the document', () => {
       face: fc.constantFrom<Face>(1, 2, 3, 4, 5, 6),
     });
     fc.assert(
-      fc.property(anyBid, anyBid, fc.boolean(), (a, b, wildOnes) => {
-        const ab = compareBids(a, b, wildOnes);
-        const ba = compareBids(b, a, wildOnes);
+      fc.property(anyBid, anyBid, (a, b) => {
+        const ab = compareBids(a, b);
+        const ba = compareBids(b, a);
         // Summed rather than negated: Math.sign(0) is +0 but -Math.sign(0) is -0, and
         // Object.is tells those apart.
         expect(Math.sign(ab) + Math.sign(ba)).toBe(0);
@@ -246,9 +249,8 @@ describe('R-08/R-09 checked against the arithmetic in the document', () => {
         (q, f, palifico) => {
           const state = table(bid(q, f), palifico);
           const bids = legalBids(state);
-          const wildOnes = !palifico;
           for (let i = 1; i < bids.length; i += 1) {
-            expect(compareBids(bids[i - 1]!, bids[i]!, wildOnes)).toBeLessThan(0);
+            expect(compareBids(bids[i - 1]!, bids[i]!)).toBeLessThan(0);
           }
           expect(new Set(bids.map((b) => `${String(b.quantity)}:${String(b.face)}`)).size).toBe(
             bids.length,
@@ -337,15 +339,27 @@ describe('R-04..R-09: the legal set a client is told about', () => {
     );
   });
 
-  test('R-09: a maximal ones bid leaves every face with no minimum at all', () => {
-    // Two players on one die each, standing (2,1): ones cannot go higher and a non-one face
-    // would need 2*2+1 = 5 dice. The client is told there is nothing to bid.
+  test('R-04/R-08: the top of the ladder leaves every face with no minimum at all', () => {
+    // Two players on one die each, standing (2, sixes): the cap is two and six is the highest
+    // face, so nothing clears it. The client is told there is nothing to bid.
     const state = makeState({
       hands: { a: [1], b: [1] },
-      bids: [{ playerId: 'a', bid: bid(2, 1) }],
+      bids: [{ playerId: 'a', bid: bid(2, 6) }],
       turnId: 'b',
     });
     expect(bidOptionsOf(state).every((option) => option.minQuantity === null)).toBe(true);
+
+    // One rung below, only the face above is available.
+    const lower = makeState({
+      hands: { a: [1], b: [1] },
+      bids: [{ playerId: 'a', bid: bid(2, 5) }],
+      turnId: 'b',
+    });
+    expect(
+      bidOptionsOf(lower)
+        .filter((option) => option.minQuantity !== null)
+        .map((option) => option.face),
+    ).toEqual([6]);
   });
 
   test('R-13: during palifico only the locked face has a minimum', () => {

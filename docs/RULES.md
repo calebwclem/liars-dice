@@ -38,15 +38,19 @@ The variant below is Perudo-style. Every rule has an ID so tests can reference i
   - higher quantity, **any** face: `(q+n, f')` for `n ≥ 1` and any `f'`.
 
   So from `(3, 5)` the legal raises are `(3, 6)` and any `(q', f')` with `q' ≥ 4`.
-  Lowering the quantity is never a raise, except via the ones conversion in R-09.
-- **R-09** Switching to/from ones (ones being wild makes them worth double):
-  - To bid **ones** when the current bid is not ones: minimum quantity is
-    `ceil(q / 2)`. Any quantity ≥ that is legal.
-  - To bid a **non-one face** when the current bid is ones `(q, 1)`: minimum quantity
-    is `2q + 1`, with any face.
-  - Raising ones with ones follows R-08 (quantity must increase).
-  - If the minimum quantity required here exceeds the total dice in play, no such raise
-    exists; the player must raise another way or challenge.
+  Lowering the quantity is never a raise.
+- **R-09** **Ones have no special standing in bidding.** A bid on ones is raised, and
+  raises over one, by R-08 alone: there is no halved quantity for switching to ones and
+  no doubling for leaving them. `(4, 6)` is followed by `(5, anything)` and nothing
+  cheaper; `(3, 1)` is followed by `(3, 2..6)` or `(4, anything)`.
+
+  Note the consequence, which is deliberate. Ones are still wild when counting (R-07),
+  but a bid *on* ones counts only ones — so at a given quantity a ones bid is half as
+  likely to be true as any other face, and costs the same to make. Bidding ones is
+  therefore a weak move, and the face is expected to fall out of use.
+
+  When `(q, f)` is at the dice-in-play cap (R-04) with `f = 6`, no legal raise exists;
+  the player must challenge.
 
 ## Challenging
 

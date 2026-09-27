@@ -170,9 +170,10 @@ interface Scored {
 /**
  * The likeliest raise available, breaking ties toward the weakest bid.
  *
- * Usually that *is* the weakest raise — asking for more of a face is always less likely — but not
- * always: R-09 lets a bid switch to ones at roughly half the quantity, and half as many of a rarer
- * face can be the better bet. Taking the maximum rather than assuming is what lets the bot find it.
+ * With R-09 gone this is very nearly always the weakest raise, since asking for more of a face is
+ * strictly less likely. It is still computed rather than assumed: the weakest raise by the bid
+ * ordering can be a *ones* bid, which counts only ones and so is less likely than the same
+ * quantity of the next face up.
  */
 function mostLikely(scored: readonly Scored[]): Scored {
   let best = scored[0];
@@ -180,7 +181,7 @@ function mostLikely(scored: readonly Scored[]): Scored {
   for (const candidate of scored) {
     if (candidate.chance > best.chance) {
       best = candidate;
-    } else if (candidate.chance === best.chance && compareBids(candidate.bid, best.bid, true) < 0) {
+    } else if (candidate.chance === best.chance && compareBids(candidate.bid, best.bid) < 0) {
       best = candidate;
     }
   }
@@ -192,7 +193,7 @@ function boldest(scored: readonly Scored[], floor: number): Scored | null {
   let best: Scored | null = null;
   for (const candidate of scored) {
     if (candidate.chance < floor) continue;
-    if (best === null || compareBids(candidate.bid, best.bid, true) > 0) best = candidate;
+    if (best === null || compareBids(candidate.bid, best.bid) > 0) best = candidate;
   }
   return best;
 }

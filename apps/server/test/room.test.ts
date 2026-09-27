@@ -54,7 +54,7 @@ describe('R-17 the timeout auto-bid and AFK takeover', () => {
     const h = openRoom();
     const actor = onTurn(h.room);
     const expected = minimumLegalBid(h.room.debugState);
-    expect(expected).toEqual({ quantity: 1, face: 2 }); // the weakest bid in the game
+    expect(expected).toEqual({ quantity: 1, face: 1 }); // the weakest bid in the game
 
     h.clock.advance(TEST_TIMINGS.turnMs);
 

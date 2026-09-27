@@ -54,9 +54,9 @@ struct OnboardingView: View {
             Card(
                 title: "Ones are wild",
                 body: """
-                    A one counts as any face, which makes them worth roughly double. Bidding on \
-                    ones takes about half the quantity — and leaving ones costs more than twice \
-                    as much. The app only ever offers you bids that are legal.
+                    A one counts as any face, so "four fives" is satisfied by fives and ones \
+                    alike. Bidding *on* ones is the exception — that counts only actual ones, \
+                    which makes it a weak claim. The app only ever offers you bids that are legal.
                     """,
                 art: AnyView(
                     HStack(spacing: 8) {
