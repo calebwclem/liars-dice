@@ -97,6 +97,57 @@ hints) and `protocol` directly. Should be fast: the server doesn't change at all
 
 **Phase 9 — Android.** Kotlin + Compose, models generated from the same protocol.
 
+## Rule variants (parked — not v1)
+
+Palifico was removed on 2026-09-27 because the owner plays without it (see
+`docs/DECISIONS.md`). The measurements taken at the time were interesting enough that it is
+parked as a candidate *mode* rather than discarded: with palifico in force, a player down to one
+die survived longer and won more often. The default ruleset is not in question — this is about
+custom games later choosing something else.
+
+**The hook already exists.** `MatchConfig` is carried on `GameState.config`, redacted into
+`PlayerView.config`, and already decoded by the iOS client. A ruleset selector belongs there and
+nowhere else — not a parallel system, not a server flag, not anything the client infers.
+
+**Name the sets; do not ship a bag of toggles.** `rules: 'pirate' | 'perudo'` rather than five
+independent booleans. Independent toggles multiply the test matrix and let players assemble
+combinations nobody has ever played; a named set is one thing to test, one thing to explain in the
+lobby, and one thing to write down in `docs/RULES.md`. If a third set is ever wanted, it gets a
+name too.
+
+**What a `perudo` set would have to restore**, all of it removed in one commit (`9c8195a`) and
+liftable from `bbe6159` rather than rewritten:
+
+- `RoundState.palifico`, `GameState.palificoNextFor`, `PlayerState.palificoUsed`,
+  `PlayerView.round.lockedFace`, `RevealSummary.wildOnes`
+- the `palificoArmed` event and the `PALIFICO_FACE_LOCKED` error
+- the `wildOnes` parameter on `countFace` and `matchChance`
+- R-09's ones conversions (halved quantity to reach ones, doubled to leave), removed separately
+  on 2026-09-27 — full Perudo has both, so a faithful set cannot cherry-pick
+
+**The invariant to protect.** `BidContext` is currently `{standing, diceInPlay}`, two public facts,
+which is why the bid options handed to a client cannot encode anything about the cups. A variant
+may add fields to it *only* if they are public too. The property test in
+`packages/engine/test/properties.test.ts` that re-rolls every hand and asserts the options do not
+move is the thing that must keep passing, under every ruleset.
+
+**Where the work actually is.** Not the rules — those are in git. It is: config plumbing through
+matchmaker and room; a lobby UI for custom games; and the test matrix, since every rule ID that
+behaves differently per set now needs a test name per set, and `coverage.test.ts` enforces that
+every ID is covered.
+
+**Matchmaking stays single-ruleset.** Quick match uses the default and nothing else, or the queue
+splits and wait times double for a feature most players will not touch. Variants belong to custom
+or private games — which is also where the owner wants them.
+
+**What the client should need to change: almost nothing.** `MatchView` renders `bidOptions` and has
+no rules in it, so an entire alternate ruleset is invisible to it by construction. The exceptions
+are copy, and they are the whole UX risk: the onboarding card that says ones are wild, the header
+line that says the same, and whatever announces that this round is different. The lesson from the
+version that shipped is that a rule a player meets for the first time *while it is being used
+against them* is a bad rule however correct the engine is. A variant must be visible in the lobby
+before the match starts.
+
 ## Things to get right early, cheaply
 
 - **Protocol versioning from message #1.** Every client sends `protocolVersion` on

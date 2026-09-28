@@ -525,3 +525,30 @@ new player can hold in their head.
 and shown in the lobby, not as a rule that fires without warning mid-match. That was the real
 failure of the version that shipped: not that the rule was unexplained, but that a player learned
 it existed at the moment it was used against them.
+
+---
+
+## 2026-09-28 — Pirate's Dice stays the default; palifico is parked as a variant
+
+**Decision:** No rule change. The shipped ruleset remains the one agreed yesterday. Palifico is
+neither restored nor discarded: it becomes a candidate named ruleset for custom games, sketched
+under "Rule variants" in `docs/PLAN.md`. Nothing is built for it now.
+
+**Alternatives:** Reverting to palifico on the strength of the measurement; building the variant
+system immediately; making palifico a plain on/off toggle.
+
+**Why:** The numbers in the previous entry cut against the change — the one-die player did better
+under palifico — and the owner read them and chose to keep playing the way they play. That is the
+right call on the evidence available: the measurement is of bots, and what the rule takes from a
+*person* is the choice of what to represent, which no bot win rate can see. Keeping the default
+and parking the alternative costs nothing today and keeps the question open.
+
+Recording the shape now rather than later is the actual point of this entry. The removal commit
+(`9c8195a`) is a complete, reviewed description of everything palifico touched, and `bbe6159` still
+has the working code — so a Perudo set is a lift, not a rewrite, *while that is still true*. Six
+months of drift from now it would be neither.
+
+Two constraints are worth fixing before anyone implements it. Rulesets must be **named sets**, not
+independent toggles: a bag of booleans multiplies the test matrix and invites combinations nobody
+has played. And variants belong to **custom games only** — quick match stays single-ruleset, or the
+queue splits and wait times double for a feature most players will never open.

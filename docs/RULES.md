@@ -112,4 +112,6 @@ reference it (e.g. `test('R-07: a one counts as any face')`).
 
 - Real-money or simulated wagering of any kind. No chips, no pots, no betting language.
   (This keeps the App Store age rating clean — see `docs/PLAN.md`.)
-- House rules toggles, private lobbies, spectators, chat, tournaments.
+- House rules toggles, private lobbies, spectators, chat, tournaments. Selectable rulesets
+  (a Perudo set that restores palifico and the R-09 conversions) are sketched under "Rule
+  variants" in `docs/PLAN.md` — parked deliberately, not forgotten.
