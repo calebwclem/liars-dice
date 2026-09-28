@@ -253,12 +253,10 @@ final class MatchViewModel {
         EventNaming(name: shortName, isMe: { [myPlayerId] id in id == myPlayerId })
     }
 
-    /// A short name for a guest id, which is otherwise a UUID that wraps across the screen.
+    /// A short name for a guest id. The rule lives in `DiceGlyphs.swift`; the private-game
+    /// lobby needs the same one and has no view model to ask.
     func shortName(_ playerId: String) -> String {
-        if playerId == myPlayerId { return "You" }
-        if playerId.hasPrefix("bot_") { return "Bot \(playerId.suffix(4))" }
-        let trimmed = playerId.hasPrefix("g_") ? String(playerId.dropFirst(2)) : playerId
-        return "Player \(trimmed.prefix(4))"
+        LiarsDice.shortName(playerId, me: myPlayerId)
     }
 
     // MARK: - The bid picker

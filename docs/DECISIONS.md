@@ -552,3 +552,58 @@ Two constraints are worth fixing before anyone implements it. Rulesets must be *
 independent toggles: a bag of booleans multiplies the test matrix and invites combinations nobody
 has played. And variants belong to **custom games only** — quick match stays single-ruleset, or the
 queue splits and wait times double for a feature most players will never open.
+
+---
+
+## 2026-09-28 — Private games are a "party", separate from the queue
+
+**Decision:** A private game is a **party**: players gathered behind a four-character code,
+waiting for whoever created it to start. Four new client messages (`createParty`, `joinParty`,
+`leaveParty`, `startParty`), two server messages (`partyState`, `partyLeft`), six error codes.
+`PROTOCOL_VERSION` goes to 3; `MIN_PROTOCOL_VERSION` stays at 2, because the change is purely
+additive and a v2 client simply has no button for it.
+
+**Alternatives:** Extending the matchmaker with a keyed queue; a "private" flag on `findMatch`;
+letting any player start rather than a host.
+
+**Why a separate registry.** The matchmaker answers "find me anyone"; a party answers "hold a
+seat for someone I know". They share only `startFrom`, and overloading the FIFO queue with keyed
+buckets would have put two lifecycles in one class — one that backfills on a timer and one that
+never starts until a person says so. `Parties` is its own file for the same reason `Room` is.
+
+**Naming.** `Room` was already the live-match actor and the client already called its idle screen
+the lobby, so a third thing called "room" would have made all three unreadable. Internally and on
+the wire it is a **party**; the UI says "private game" and "room code", which is what players
+actually say. Three names for three things: a party waits behind a code, the queue waits for the
+matchmaker, a room is a match in progress.
+
+**The code.** Four characters from a 32-letter alphabet with no confusable glyphs — no O or 0, no
+I or 1 — because the code's whole job is to survive being read aloud. That is ~1.05M codes for
+something that lives only as long as the party, and the generator retries on collision rather
+than assuming it away. Codes come from the system CSPRNG, not `Math.random()`: a code is not a
+secret, but it is the only thing between a private game and a stranger.
+
+Strictness sits on the wire and leniency sits in the text field, which is the right way round.
+The schema accepts uppercase only; the client uppercases, drops anything outside the alphabet,
+and truncates as you type. A player who types lowercase should never see "bad message".
+
+**Two deliberate behaviours.**
+
+*The host is transferable.* When the host leaves — and a dropped connection is how most hosts
+will leave — the party passes to whoever has been there longest rather than dissolving. The code
+keeps working, so a host whose wifi blipped walks straight back in.
+
+*Disconnecting leaves the party, unlike a match.* R-18 holds a seat in a live match for 45
+seconds because a seat carries dice. A party seat carries nothing, so a drop just removes you and
+the others are told; rejoining costs one code. Worth revisiting if playtests show people losing
+their party to a lift ride.
+
+**Bots are opt-in per match, not automatic.** The public queue backfills on a timer because
+nobody wants to wait for strangers. A party already knows who it is waiting for, so the host gets
+a toggle instead: two friends who want a head-to-head get exactly that (R-01 allows 2), and three
+who want a full table get one bot. Defaulting the toggle *on* matches what most private games
+will want.
+
+**What this does not include:** rule variants per party (parked, see PLAN.md), kicking, rejoining
+a party in progress, or join links. The code plus a group chat covers the playtest case, and
+every one of those is cheaper to add once people have actually used this.

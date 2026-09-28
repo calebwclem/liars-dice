@@ -452,6 +452,9 @@ function emitDecl(decl: Decl, names: Names): string[] {
 export interface SwiftFileOptions {
   readonly protocolVersion: number;
   readonly minProtocolVersion: number;
+  /** The party-code alphabet, emitted so a client normalises against the same set the wire uses. */
+  readonly partyCodeAlphabet: string;
+  readonly partyCodeLength: number;
 }
 
 export function emitSwift(decls: readonly Decl[], options: SwiftFileOptions): string {
@@ -479,6 +482,12 @@ export function emitSwift(decls: readonly Decl[], options: SwiftFileOptions): st
     '/// version it does not support.',
     `let protocolVersion = ${String(options.protocolVersion)}`,
     `let minProtocolVersion = ${String(options.minProtocolVersion)}`,
+    '',
+    "/// A private game's invite code. The wire contract is strict and uppercase, so a client",
+    '/// normalises what a player typed against this alphabet before sending it — which only works',
+    '/// if it is the same alphabet, which is why it is generated rather than retyped.',
+    `let partyCodeAlphabet = ${JSON.stringify(options.partyCodeAlphabet)}`,
+    `let partyCodeLength = ${String(options.partyCodeLength)}`,
     '',
   ];
   const body = decls.flatMap((decl) => lines(emitDecl(decl, names), ''));

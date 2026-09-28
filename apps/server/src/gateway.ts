@@ -26,6 +26,7 @@ import type { Clock } from './clock.ts';
 import type { Config } from './env.ts';
 import type { Logger } from './logger.ts';
 import { Matchmaker } from './matchmaker.ts';
+import { Parties } from './party.ts';
 import { Room, type SeatSpec } from './room.ts';
 
 /** Close the socket after this many refusals — a client ignoring the limit is not a client. */
@@ -59,6 +60,7 @@ export class Gateway {
   private readonly rooms = new Map<string, Room>();
   private readonly playerRoom = new Map<PlayerId, string>();
   private readonly matchmaker: Matchmaker;
+  private readonly parties: Parties;
 
   constructor(options: GatewayOptions) {
     this.options = options;
@@ -71,6 +73,17 @@ export class Gateway {
       log: options.log,
       onMatch: (matchId, seats) => {
         this.openRoom(matchId, seats);
+      },
+    });
+    this.parties = new Parties({
+      matchSize: options.config.MATCH_SIZE,
+      log: options.log,
+      onStart: (matchId, seats) => {
+        this.openRoom(matchId, seats);
+      },
+      onChanged: (party) => {
+        // The party has no sockets of its own; delivering its state is the gateway's job.
+        for (const playerId of party.members) this.send(playerId, { type: 'partyState', ...party });
       },
     });
     this.wss.on('connection', (socket: WebSocket) => {
@@ -86,10 +99,15 @@ export class Gateway {
     return this.rooms.size;
   }
 
+  get partyCount(): number {
+    return this.parties.size;
+  }
+
   async close(): Promise<void> {
     for (const room of this.rooms.values()) room.dispose();
     this.rooms.clear();
     this.matchmaker.dispose();
+    this.parties.dispose();
     for (const socket of this.sessions.keys()) socket.close(1001, 'server shutting down');
     await new Promise<void>((resolve) => {
       this.wss.close(() => {
@@ -131,6 +149,10 @@ export class Gateway {
     if (this.sockets.get(playerId) === session.socket) {
       this.sockets.delete(playerId);
       this.matchmaker.remove(playerId);
+      // A party is a waiting room, not a seat: dropping out of one costs nothing but the
+      // code, and the remaining members are told. A *match* is different — R-18 holds the
+      // seat open, which is what `onDisconnected` below is for.
+      this.parties.leave(playerId);
       this.roomOf(playerId)?.onDisconnected(playerId); // R-18
     }
     this.log.debug('socket.closed', { playerId });
@@ -190,6 +212,10 @@ export class Gateway {
           this.reject(session, 'ALREADY_IN_MATCH', null);
           return;
         }
+        if (this.parties.isInParty(playerId)) {
+          this.reject(session, 'ALREADY_IN_PARTY', null);
+          return;
+        }
         const status = this.matchmaker.enqueue(playerId);
         if (status === null) {
           this.reject(session, 'ALREADY_QUEUED', null);
@@ -207,6 +233,43 @@ export class Gateway {
         }
         this.send(playerId, { type: 'queueCancelled' });
         return;
+
+      case 'createParty':
+      case 'joinParty': {
+        // The three waiting places are mutually exclusive, and the checks read in the order a
+        // player would hit them: already playing, already queued, already in a party (which
+        // `Parties` answers itself, since it is the one that knows).
+        if (this.playerRoom.has(playerId)) {
+          this.reject(session, 'ALREADY_IN_MATCH', null);
+          return;
+        }
+        if (this.matchmaker.isQueued(playerId)) {
+          this.reject(session, 'ALREADY_QUEUED', null);
+          return;
+        }
+        const result =
+          message.type === 'createParty'
+            ? this.parties.create(playerId)
+            : this.parties.join(playerId, message.code);
+        // A success has already gone out as `partyState` through `onChanged`.
+        if (typeof result === 'string') this.reject(session, result, null);
+        return;
+      }
+
+      case 'leaveParty':
+        if (!this.parties.leave(playerId)) {
+          this.reject(session, 'NOT_IN_PARTY', null);
+          return;
+        }
+        this.send(playerId, { type: 'partyLeft' });
+        return;
+
+      case 'startParty': {
+        const failure = this.parties.start(playerId, message.fillWithBots);
+        // On success the party dissolved and `openRoom` has already sent `matchFound`.
+        if (failure !== null) this.reject(session, failure, null);
+        return;
+      }
 
       case 'bid':
       case 'dudo': {

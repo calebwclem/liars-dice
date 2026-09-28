@@ -9,7 +9,12 @@ const irOf = (name: string, schema: z.ZodType, io: 'input' | 'output' = 'output'
   declarationFrom(name, z.toJSONSchema(schema, { io }));
 
 const swiftOf = (decls: readonly Decl[]): string =>
-  emitSwift(decls, { protocolVersion: 1, minProtocolVersion: 1 });
+  emitSwift(decls, {
+    protocolVersion: 1,
+    minProtocolVersion: 1,
+    partyCodeAlphabet: 'ABCD',
+    partyCodeLength: 4,
+  });
 
 describe('JSON Schema to IR', () => {
   test('a discriminated union keeps its own discriminator name', () => {

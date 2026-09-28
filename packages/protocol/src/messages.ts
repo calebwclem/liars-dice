@@ -15,6 +15,21 @@ const matchId = z.string().min(1).max(64);
 const seq = z.number().int().nonnegative();
 
 /**
+ * A private game's invite code — what one player reads out and the others type in.
+ *
+ * Four characters from an alphabet with no confusable glyphs: no I or 1, no O or 0. That is
+ * 32^4 ≈ 1.05M codes, which is far more than enough for codes that live only as long as the
+ * party does, and short enough to say over a voice call without repeating yourself.
+ *
+ * Strict and uppercase on the wire. Being lenient about case belongs in the client's text
+ * field, not in the contract — a schema that quietly rewrites its input is a schema that no
+ * longer describes what was sent.
+ */
+export const PARTY_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const PARTY_CODE_LENGTH = 4;
+const partyCode = z.string().regex(/^[A-HJ-NP-Z2-9]{4}$/);
+
+/**
  * Why a state message was sent: a live transition, or the answer to a `resume`. A client can use
  * it to skip animations when catching up after a reconnect.
  */
@@ -32,6 +47,12 @@ export const ProtocolErrorCodeSchema = z.enum([
   'ALREADY_IN_MATCH',
   'ALREADY_QUEUED',
   'NOT_QUEUED',
+  'UNKNOWN_PARTY',
+  'PARTY_FULL',
+  'ALREADY_IN_PARTY',
+  'NOT_IN_PARTY',
+  'NOT_PARTY_HOST',
+  'PARTY_TOO_SMALL',
   'SEQ_TOO_OLD',
   'SEAT_NOT_YOURS',
   'INTERNAL',
@@ -51,6 +72,16 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   }),
   z.strictObject({ type: z.literal('findMatch') }),
   z.strictObject({ type: z.literal('cancelQueue') }),
+  /**
+   * Private games. A party is a group of players gathered behind a code, waiting for the host
+   * to start; the public queue is strangers gathered by the matchmaker. A player is in at most
+   * one of the two, and in neither once a match is open.
+   */
+  z.strictObject({ type: z.literal('createParty') }),
+  z.strictObject({ type: z.literal('joinParty'), code: partyCode }),
+  z.strictObject({ type: z.literal('leaveParty') }),
+  /** Host only. `fillWithBots` tops the table up to a normal match size (R-01 allows 2–6). */
+  z.strictObject({ type: z.literal('startParty'), fillWithBots: z.boolean() }),
   z.strictObject({ type: z.literal('bid'), matchId, bid: BidSchema }),
   z.strictObject({ type: z.literal('dudo'), matchId }),
   /**
@@ -76,7 +107,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
  */
 export const BidOptionSchema = z.strictObject({
   face: FaceSchema,
-  /** Null when that face cannot be bid at all — see R-09's dead end. */
+  /** Null when that face cannot be bid at all — only R-04's cap does that now. */
   minQuantity: z.number().int().positive().nullable(),
 });
 
@@ -140,6 +171,23 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
     backfillInMs: z.number().int().nonnegative(),
   }),
   z.strictObject({ type: z.literal('queueCancelled') }),
+  /**
+   * The whole party, broadcast to every member whenever it changes. A full state rather than
+   * joined/left deltas, for the same reason `state` carries a full snapshot: a client that
+   * missed one message must never be able to drift.
+   */
+  z.strictObject({
+    type: z.literal('partyState'),
+    code: partyCode,
+    /** Only this player may start the match. Passed on when they leave. */
+    hostId: playerId,
+    members: z.array(playerId),
+    /** R-01's bounds, so the client can enable its buttons without knowing the rule. */
+    minSize: z.number().int().positive(),
+    maxSize: z.number().int().positive(),
+  }),
+  /** Sent to the player who left, so their client can go back to the lobby screen. */
+  z.strictObject({ type: z.literal('partyLeft') }),
   z.strictObject({
     type: z.literal('matchFound'),
     matchId,

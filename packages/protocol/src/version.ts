@@ -9,7 +9,7 @@
  * client tolerates additions in practice; the version gate is what makes that a decision
  * rather than an accident.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /**
  * The oldest client version this server still accepts.
@@ -19,5 +19,11 @@ export const PROTOCOL_VERSION = 2;
  * `reveal.wildOnes`, the `palificoArmed` event, the `PALIFICO_FACE_LOCKED` error — and a
  * v1 client decoding a v2 snapshot would find them missing, not merely unfamiliar. There
  * is nothing shipped to be compatible with yet, so the gate simply refuses v1.
+ *
+ * Version 3 adds private parties. That change is purely additive — four client messages, two
+ * server messages, six error codes — and a v2 client never sends or receives any of them, so
+ * it would in principle still work. The minimum stays at 2 rather than rising to 3 for
+ * exactly that reason: raise the floor when old clients would *break*, not merely when they
+ * would miss out. A v2 client simply has no button for private games.
  */
 export const MIN_PROTOCOL_VERSION = 2;

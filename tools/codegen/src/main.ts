@@ -8,7 +8,12 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '@liars-dice/protocol';
+import {
+  MIN_PROTOCOL_VERSION,
+  PARTY_CODE_ALPHABET,
+  PARTY_CODE_LENGTH,
+  PROTOCOL_VERSION,
+} from '@liars-dice/protocol';
 import { declarations } from './registry.ts';
 import { emitSwift } from './swift.ts';
 
@@ -19,6 +24,8 @@ const target = join(repoRoot, 'clients', 'ios', 'Sources', 'Generated', 'Protoco
 const source = emitSwift(declarations(), {
   protocolVersion: PROTOCOL_VERSION,
   minProtocolVersion: MIN_PROTOCOL_VERSION,
+  partyCodeAlphabet: PARTY_CODE_ALPHABET,
+  partyCodeLength: PARTY_CODE_LENGTH,
 });
 
 await mkdir(dirname(target), { recursive: true });

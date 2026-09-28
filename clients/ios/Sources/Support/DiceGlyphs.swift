@@ -30,6 +30,17 @@ extension Bid {
     var spoken: String { face.spoken(count: quantity) }
 }
 
+/// A short name for a guest id, which is otherwise a UUID that wraps across the screen.
+///
+/// A free function rather than a method because two screens need it now — the match feed and the
+/// private-game lobby — and neither should have to own the other's copy.
+func shortName(_ playerId: String, me: String) -> String {
+    if playerId == me { return "You" }
+    if playerId.hasPrefix("bot_") { return "Bot \(playerId.suffix(4))" }
+    let trimmed = playerId.hasPrefix("g_") ? String(playerId.dropFirst(2)) : playerId
+    return "Player \(trimmed.prefix(4))"
+}
+
 /// How to refer to people in the event feed.
 ///
 /// Two jobs, both learned from a real device. A guest id is a UUID, and a feed full of them wraps
@@ -112,6 +123,12 @@ extension ErrorCode {
         case .seatNotYours: "A bot is playing your seat."
         case .rateLimited: "Slow down a moment."
         case .unknownMatch, .notInMatch: "That match has finished."
+        case .unknownParty: "No game with that code. Check it and try again."
+        case .partyFull: "That game is full."
+        case .alreadyInParty: "You are already in a private game."
+        case .notInParty: "You are not in a private game."
+        case .notPartyHost: "Only the player who created the game can start it."
+        case .partyTooSmall: "You need at least one other player to start."
         default: "The server refused that: \(rawValue)"
         }
     }

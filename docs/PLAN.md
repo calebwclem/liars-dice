@@ -97,6 +97,16 @@ hints) and `protocol` directly. Should be fast: the server doesn't change at all
 
 **Phase 9 — Android.** Kotlin + Compose, models generated from the same protocol.
 
+## Private games (landed 2026-09-28)
+
+Players can create a party, share a four-character code, and start when everyone is in — with an
+optional bot fill for empty seats. Built ahead of the Phase 8 web client because playtesting with
+real people needs it: the public queue backfills with bots after ten seconds, so friends clicking
+"find a match" at different moments never meet. See `docs/DECISIONS.md` for the shape.
+
+This is also where a per-party ruleset selector belongs when the variants below are built — the
+lobby is the one screen where a player can see what they are about to play before it starts.
+
 ## Rule variants (parked — not v1)
 
 Palifico was removed on 2026-09-27 because the owner plays without it (see

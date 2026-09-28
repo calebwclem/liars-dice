@@ -44,6 +44,8 @@ export {
   ClientMessageSchema,
   ErrorCodeSchema,
   MatchSnapshotSchema,
+  PARTY_CODE_ALPHABET,
+  PARTY_CODE_LENGTH,
   ProtocolErrorCodeSchema,
   SeatControlSchema,
   SeatStatusSchema,

@@ -21,6 +21,8 @@ final class GameSession {
         case connecting
         case lobby
         case queued(waiting: Int, target: Int, backfillInMs: Int)
+        /// A private game, gathered behind a code and waiting for its host to start.
+        case party(ServerMessage.PartyState)
         case playing
         /// The server speaks a protocol this build does not (PLAN.md's version gate).
         case needsUpdate(serverVersion: Int)
@@ -107,6 +109,40 @@ final class GameSession {
         send(.cancelQueue)
     }
 
+    // MARK: - Private games
+
+    func createParty() {
+        lastError = nil
+        send(.createParty)
+    }
+
+    /// Joins by code. The wire contract is strict and uppercase, so normalising is the client's
+    /// job — a player typing "ab 3f" into a text field should not be told their code is malformed.
+    func joinParty(code: String) {
+        lastError = nil
+        send(.joinParty(.init(code: GameSession.normalise(code))))
+    }
+
+    func leaveParty() {
+        send(.leaveParty)
+    }
+
+    func startParty(fillWithBots: Bool) {
+        lastError = nil
+        send(.startParty(.init(fillWithBots: fillWithBots)))
+    }
+
+    /// Uppercased, with anything outside the code alphabet dropped.
+    static func normalise(_ code: String) -> String {
+        String(code.uppercased().filter { partyCodeAlphabet.contains($0) }.prefix(partyCodeLength))
+    }
+
+    /// Whether a typed code is worth sending at all. The server would refuse a short one as a
+    /// bad message, which is a worse thing to show a player than a disabled button.
+    static func isCompleteCode(_ code: String) -> Bool {
+        normalise(code).count == partyCodeLength
+    }
+
     func leaveMatch() {
         guard let matchId = match?.matchId else { return }
         send(.leave(.init(matchId: matchId)))
@@ -154,6 +190,12 @@ final class GameSession {
             )
 
         case .queueCancelled:
+            stage = .lobby
+
+        case .partyState(let party):
+            stage = .party(party)
+
+        case .partyLeft:
             stage = .lobby
 
         case .matchFound(let found):

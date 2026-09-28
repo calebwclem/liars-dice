@@ -11,6 +11,7 @@ struct RootView: View {
     var preferences = Preferences()
 
     @State private var showOnboarding = false
+    @State private var showJoin = false
 
     var body: some View {
         ZStack {
@@ -29,6 +30,16 @@ struct RootView: View {
                 preferences.hasSeenOnboarding = true
                 showOnboarding = false
             }
+        }
+        .sheet(isPresented: $showJoin) {
+            JoinPrivateGameView(
+                join: { code in
+                    session.joinParty(code: code)
+                    showJoin = false
+                },
+                cancel: { showJoin = false },
+                lastError: session.lastError
+            )
         }
         .onAppear {
             showOnboarding = !preferences.hasSeenOnboarding
@@ -49,7 +60,20 @@ struct RootView: View {
             }
 
         case .lobby:
-            LobbyView(session: session, showRules: { showOnboarding = true })
+            LobbyView(
+                session: session,
+                showRules: { showOnboarding = true },
+                showJoin: { showJoin = true }
+            )
+
+        case .party(let party):
+            PrivateGameView(
+                party: party,
+                myPlayerId: session.playerId ?? "",
+                start: { fillWithBots in session.startParty(fillWithBots: fillWithBots) },
+                leave: { session.leaveParty() },
+                lastError: session.lastError
+            )
 
         case .queued(let waiting, let target, let backfillInMs):
             QueueView(
@@ -147,6 +171,7 @@ struct ReconnectingBanner: View {
 struct LobbyView: View {
     let session: GameSession
     let showRules: () -> Void
+    let showJoin: () -> Void
 
     var body: some View {
         VStack(spacing: 22) {
@@ -169,6 +194,18 @@ struct LobbyView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.brass)
                 .controlSize(.large)
+
+            // Private games sit under the public queue rather than beside it: most sessions
+            // start with "find me anyone", and the friends flow is the deliberate detour.
+            HStack(spacing: 10) {
+                Button("Play with friends") { session.createParty() }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.brass)
+                Button("Join with a code", action: showJoin)
+                    .buttonStyle(.bordered)
+                    .tint(Theme.brass)
+            }
+            .controlSize(.regular)
 
             Button("How to play", action: showRules)
                 .font(.footnote)
