@@ -60,10 +60,7 @@ export const bidContextOfView = (view: PlayerView): BidContext => ({
  * R-04: how many dice on the table show `face`. R-07: a 1 counts as any face, always —
  * but a bid *on* ones counts only the ones themselves, never double.
  */
-export function countFace(
-  hands: Readonly<Record<PlayerId, readonly Face[]>>,
-  face: Face,
-): number {
+export function countFace(hands: Readonly<Record<PlayerId, readonly Face[]>>, face: Face): number {
   const wild = face !== 1;
   let count = 0;
   for (const hand of Object.values(hands)) {

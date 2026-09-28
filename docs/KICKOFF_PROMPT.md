@@ -1,5 +1,16 @@
 # Kickoff prompt for Claude Code
 
+> **Historical record — not a live spec. Do not update this file.**
+>
+> This is the brief that started the project, kept for the record. It describes the repo as
+> it was about to be created, and its rule references are as of that day: it still mentions
+> calza and the ones/non-ones conversions, neither of which survived Phase 1, and the phase
+> list stops where the roadmap then stopped.
+>
+> The authorities are `docs/RULES.md` (rules), `docs/PLAN.md` (roadmap) and
+> `docs/DECISIONS.md` (why things changed). When this file and one of those disagree, this
+> file is wrong by definition.
+
 ## Before you paste anything
 
 ```bash

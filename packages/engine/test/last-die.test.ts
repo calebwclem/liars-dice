@@ -68,8 +68,10 @@ describe('R-13 the last die is not special', () => {
       turnId: 'b',
     });
     for (const next of [bid(2, 4), bid(2, 6), bid(3, 1), bid(3, 3), bid(5, 2)]) {
-      expect(reduce(state, { type: 'bid', playerId: 'b', bid: next }, ctx()).ok, JSON.stringify(next))
-        .toBe(true);
+      expect(
+        reduce(state, { type: 'bid', playerId: 'b', bid: next }, ctx()).ok,
+        JSON.stringify(next),
+      ).toBe(true);
     }
     // R-08 still bites in the ordinary way.
     expectErr(reduce(state, { type: 'bid', playerId: 'b', bid: bid(2, 2) }, ctx()), 'BID_TOO_LOW');

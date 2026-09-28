@@ -3,6 +3,11 @@
 Project: **Liar's Dice** — a real-time, online multiplayer dice game.
 Ship order: iOS first, then web, then Android. One shared rules engine, thin clients.
 
+The variant is **Pirate's Dice** (common-hand), not Perudo/Dudo: ones are wild in every
+round, a raise must increase quantity or face, and there is no palifico and no calza.
+`docs/RULES.md` is the authority and states the divergences deliberately — read it before
+assuming a rule from another version of the game applies here.
+
 The owner is an experienced programmer (Java/C++/Python/C) who is **new to Swift and
 iOS**. When writing Swift, briefly explain idioms that differ from those languages
 (optionals, value vs reference semantics, `@State`/`@Observable`, structured concurrency)
@@ -36,14 +41,21 @@ packages/protocol/    Zod schemas for all client<->server messages. Version cons
 packages/bots/        Bot policies (pure; take a redacted view, return an action).
 apps/server/          WS gateway, matchmaker, room actors, persistence, auth.
 apps/cli/             Terminal client. Play a match against the bots, no server.
-apps/web/             (Phase 8) React + Vite client.
 clients/ios/          SwiftUI app. project.yml (XcodeGen) — see below.
-clients/android/      (Phase 9) Kotlin + Compose.
 tools/codegen/        protocol -> Swift/Kotlin model generation.
+scripts/play-ios.sh   One command: codegen, build, boot a sim, start the server, launch.
 docs/RULES.md         CANONICAL RULESET. The spec. Read it before touching the engine.
-docs/PLAN.md          Phased roadmap and infrastructure.
+docs/PLAN.md          Phased roadmap, infrastructure, and parked ideas (rule variants).
 docs/DECISIONS.md     Append-only log of architectural decisions.
+docs/KICKOFF_PROMPT.md  The original brief. History, not a live spec.
+
+Planned, not yet created: apps/web/ (Phase 8), clients/android/ (Phase 9).
 ```
+
+Two build products that are not in git and must be regenerated rather than edited:
+`clients/ios/Sources/Generated/` (`pnpm codegen`) and `clients/ios/*.xcodeproj`
+(`xcodegen generate`). `clients/ios/Tests/Fixtures/transcript.json` *is* in git but is
+also generated — see `pnpm fixtures` below.
 
 ## Commands
 
@@ -56,8 +68,13 @@ pnpm dev:server              # local server on :8080
 pnpm cli                     # terminal client — play a full game against bots, no server
 pnpm play:ios                # build, install and launch the app on a simulator, server and all
 pnpm codegen                 # regenerate Swift/Kotlin models from packages/protocol
-pnpm lint && pnpm typecheck  # must both pass before you say a task is done
+pnpm fixtures                # re-capture clients/ios/Tests/Fixtures/transcript.json
+pnpm lint && pnpm typecheck && pnpm format:check   # all three before you call it done
 ```
+
+**After any change to `packages/protocol`, run both `pnpm codegen` and `pnpm fixtures`.**
+CI fails the iOS workflow if the captured transcript is stale, and it is easy to miss:
+the TS tests all pass without it.
 
 iOS (run from `clients/ios/`):
 
@@ -65,9 +82,13 @@ iOS (run from `clients/ios/`):
 pnpm codegen                 # FIRST: Sources/Generated is a build product, not in git
 xcodegen generate            # ALWAYS after adding/removing/renaming a Swift file
 xcrun simctl list devices available | grep iPhone   # device names change with Xcode
-xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17' build
-xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17' test
+xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 16e' build
+xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 16e' test
 ```
+
+**iPhone 17 is the owner's simulator — they play on it.** Build and test on **iPhone 16e**
+instead, and never run `simctl shutdown all`, uninstall the app, or kill the dev server
+without asking. A previous session did all three during a live match.
 
 ## Hard rules
 
@@ -110,7 +131,9 @@ xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17
 ## Swift conventions
 
 - Swift 6, SwiftUI, strict concurrency. Minimum target iOS 17.
-- `@Observable` view models; views stay dumb. One view model per screen.
+- `@Observable` view models; views stay dumb. `MatchViewModel` is per-screen;
+  `GameSession` is the session-scoped one above it, owning the socket and the match
+  lifecycle. A view with no state of its own (`OnboardingView`) gets no view model.
 - Networking is a single `actor GameSocket` wrapping `URLSessionWebSocketTask`, exposing
   an `AsyncStream<ServerMessage>`. All socket access goes through it.
 - Model types are `Codable` structs generated from the protocol — treat as read-only.
@@ -119,10 +142,18 @@ xcodebuild -scheme LiarsDice -destination 'platform=iOS Simulator,name=iPhone 17
 
 ## Testing bar before a phase is "done"
 
-- Engine: every rule ID covered; property tests assert invariants (total dice never
-  increase except via R-10 calza; a player's dice count is 0–5; state is serializable
-  round-trip).
+- Engine: every rule ID covered (`coverage.test.ts` enforces it); property tests assert
+  invariants — total dice in play never increases (no v1 rule returns a die), a player's
+  dice count stays in 0–5, state survives a JSON round trip, and the bid options handed to
+  a client never depend on anybody's dice.
 - Server: an integration test that drives 4 in-process clients through a full match to a
   winner, including a disconnect/resync.
-- iOS: unit tests on view models and the socket actor; at least one UI smoke test that
-  plays a scripted match against a stubbed server.
+- iOS: unit tests on the view models, the socket actor, and the session flow, all driven
+  through `StubTransport` rather than a live server. `ProtocolDecodingTests` decodes a
+  transcript captured from a real `Room` (`pnpm fixtures`), so the models are checked
+  against what the server actually sends rather than hand-written JSON.
+
+  There is **no XCUITest target** — nothing exercises the SwiftUI views themselves, so a
+  view-layer bug (a wrong `ForEach` identity, a binding that never fires) is found by
+  playing the game, not by CI. That is the accepted trade, not an oversight; say so
+  plainly rather than implying the UI is covered.
