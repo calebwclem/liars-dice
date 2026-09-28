@@ -102,7 +102,8 @@ without asking. A previous session did all three during a live match.
   ambiguous or wrong, stop and ask; amend the doc deliberately, then fix the code.
 - **Never put game logic in the iOS client.**
 - **Never log or serialize hidden dice outside a reveal event.**
-- No secrets in the repo. Server config comes from env vars; see `.env.example`.
+- No secrets in the repo. Server config comes from env vars, validated once at boot in
+  `apps/server/src/env.ts`; see `apps/server/.env.example`.
 
 ## Workflow expectations
 
