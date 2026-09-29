@@ -74,10 +74,18 @@ export function staticSite(root: string): StaticSite {
 /**
  * The file this path means, or null.
  *
- * Anything that is not a real file falls back to `index.html`, because the client is a
- * single-page app and a deep link has to reach it. A request for a missing *asset* still falls
- * back, which is imperfect — but a 200 of HTML where a client expected JavaScript is a loud,
- * obvious failure, and the alternative is a second lookup table to keep in step with the build.
+ * A path that is not a real file falls back to `index.html`, because the client is a single-page
+ * app and a deep link has to reach it — but only if it reads as a *navigation*. A request for a
+ * file the build should have emitted and did not is a 404.
+ *
+ * The distinction matters once this is deployed somewhere permanent. index.html is served
+ * `no-cache` and the fingerprinted bundles are served `immutable`, so the failure to plan for is
+ * a page that outlived its bundle: a stale tab asks for `/assets/index-OLD.js`, and answering
+ * with HTML gets it a syntax error somewhere inside a script tag rather than the 404 that would
+ * have told it, and told the logs, what actually happened.
+ *
+ * `TYPES` decides what counts as a file, so this is not a second table to keep in step with the
+ * build — it is the one that was already here.
  */
 async function locate(base: string, pathname: string): Promise<string | null> {
   // `normalize` collapses `..` before anything touches the filesystem, and the prefix check
@@ -87,9 +95,26 @@ async function locate(base: string, pathname: string): Promise<string | null> {
   if (candidate !== base && !candidate.startsWith(base + sep)) return null;
 
   if (await isFile(candidate)) return candidate;
+  if (namesAFile(pathname)) return null;
 
   const index = join(base, 'index.html');
   return (await isFile(index)) ? index : null;
+}
+
+/**
+ * Does this path ask for a file rather than a page?
+ *
+ * Two ways to say yes: it is under `/assets/`, which is the one directory Vite fills and
+ * fingerprints, or it ends in an extension this server knows how to serve. An unfamiliar
+ * extension still falls through to the page — `/room/v1.2` is a stranger sort of deep link than
+ * this app has, but guessing "file" from a dot alone would break it, and guessing "page" only
+ * serves HTML to something that was never going to parse it anyway.
+ */
+function namesAFile(pathname: string): boolean {
+  if (pathname.startsWith('/assets/')) return true;
+  const last = pathname.slice(pathname.lastIndexOf('/') + 1);
+  const dot = last.lastIndexOf('.');
+  return dot > 0 && Object.hasOwn(TYPES, last.slice(dot).toLowerCase());
 }
 
 async function isFile(path: string): Promise<boolean> {

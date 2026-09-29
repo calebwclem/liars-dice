@@ -67,8 +67,36 @@ describe('The static site', () => {
     expect(response.headers.get('cache-control')).toBe('no-cache');
   });
 
-  test('an unknown path falls back to the page, because the client routes itself', async () => {
-    const response = await fetch(`${base}/some/deep/link`);
+  test('a missing bundle is a 404, not the page with a 200', async () => {
+    // The deployment failure this is for: index.html is `no-cache` and the bundles are
+    // `immutable`, so a stale tab can outlive its own JavaScript. Answering `/assets/*.js` with
+    // HTML gets that tab a syntax error inside a script tag; a 404 says what happened, to the
+    // browser and to the logs.
+    const response = await fetch(`${base}/assets/index-DELETED.js`);
+    expect(response.status).toBe(404);
+    expect(await response.text()).not.toContain('<title>page</title>');
+  });
+
+  test('a missing file outside /assets/ is a 404 too, by its extension', async () => {
+    for (const path of ['/favicon.ico', '/robots.txt.css', '/app.js', '/styles.css']) {
+      const response = await fetch(`${base}${path}`);
+      expect(response.status, `${path} was answered with something`).toBe(404);
+    }
+  });
+
+  test('a deep link is still a navigation and still reaches the page', async () => {
+    // The whole reason the fallback exists. Narrowing it must not cost this.
+    for (const path of ['/some/deep/link', '/join/WXYZ', '/']) {
+      const response = await fetch(`${base}${path}`);
+      expect(response.status, path).toBe(200);
+      expect(await response.text(), path).toContain('<title>page</title>');
+    }
+  });
+
+  test('an extension this server does not serve is not treated as a file', async () => {
+    // Where the line is drawn, stated out loud: `TYPES` decides, so an unknown suffix falls
+    // through to the page rather than being guessed at from the dot alone.
+    const response = await fetch(`${base}/room/v1.2`);
     expect(response.status).toBe(200);
     expect(await response.text()).toContain('<title>page</title>');
   });
