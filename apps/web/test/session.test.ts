@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { ServerMessage } from '@liars-dice/protocol';
 import { PROTOCOL_VERSION } from '@liars-dice/protocol';
 import { Session, isCompleteCode, normaliseCode, type SocketLike } from '../src/session.ts';
@@ -286,5 +286,29 @@ describe('The session', () => {
     socket.deliver(welcome);
     session.bid(3, 5);
     expect(socket.messages().some((message) => message.type === 'bid')).toBe(false);
+  });
+});
+
+describe('Finding the server', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('in development the socket follows the host the page came from', async () => {
+    // The bug this exists to prevent: a hardcoded 127.0.0.1 works on the machine running the dev
+    // server and fails silently on every other device, because 127.0.0.1 on a phone is the phone.
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', hostname: '10.0.0.241', host: '10.0.0.241:5173' },
+    });
+    const { defaultEndpoint } = await import('../src/session.ts');
+    expect(defaultEndpoint()).toBe('ws://10.0.0.241:8080');
+  });
+
+  test('on localhost it still points at localhost', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', hostname: 'localhost', host: 'localhost:5173' },
+    });
+    const { defaultEndpoint } = await import('../src/session.ts');
+    expect(defaultEndpoint()).toBe('ws://localhost:8080');
   });
 });

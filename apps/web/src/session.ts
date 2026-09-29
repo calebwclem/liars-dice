@@ -70,16 +70,25 @@ export function isCompleteCode(code: string): boolean {
   return normaliseCode(code).length === PARTY_CODE_LENGTH;
 }
 
+/** The game server's port in development. Vite serves the page on 5173; this is next door. */
+const DEV_SERVER_PORT = 8080;
+
 /**
  * Where the server is.
  *
  * In production the page is served by the same Node process that owns the socket, so the origin
- * is the answer and no configuration exists to get wrong. In `vite dev` the page comes from
- * :5173 and the server is next door on :8080.
+ * is the answer and there is no configuration to get wrong.
+ *
+ * In `vite dev` the page comes from :5173 and the server is on :8080 — but on the *same host the
+ * page came from*, never a hardcoded localhost. Vite's dev server answers on the LAN so the
+ * layout can be checked on a phone, and a phone told to connect to 127.0.0.1 would be connecting
+ * to itself: the page loads and the socket silently has nowhere to go.
  */
 export function defaultEndpoint(): string {
-  if (import.meta.env.DEV) return 'ws://127.0.0.1:8080';
   const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  if (import.meta.env.DEV) {
+    return `${scheme}//${window.location.hostname}:${String(DEV_SERVER_PORT)}`;
+  }
   return `${scheme}//${window.location.host}`;
 }
 
