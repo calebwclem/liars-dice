@@ -5,7 +5,7 @@
   "type": "module",
   "description": "WebSocket gateway, matchmaker, and room actors. Owns the clock and the sockets; the engine owns the rules.",
   "scripts": {
-    "dev": "node --watch --env-file-if-exists=.env src/index.ts",
+    "dev": "node --watch src/index.ts",
     "start": "node src/index.ts",
     "test": "vitest run",
     "test:integration": "vitest run test/integration.test.ts",

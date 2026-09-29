@@ -173,11 +173,12 @@ table 4 × ⚅` — and reads clearly on a real screen. Do not re-add it without
 - **Reconnect, tested in anger.** `session.ts` mirrors the iOS backoff and the banner exists,
   but no one has killed a connection mid-match in a browser and watched it recover. Turn wifi
   off for five seconds during a match before trusting it.
-- **The SPA fallback is too eager.** `static.ts` serves `index.html` for *any* path it cannot
-  find, including a missing `/assets/*.js`. Harmless today; once deployed somewhere permanent, a
-  stale cached page requesting a deleted bundle gets HTML back and fails confusingly.
-- **The shutdown logs four times.** `node --watch` runs a supervisor and a child, both of which
-  log the signal. Cosmetic, but it reads like four servers were running.
+- ~~**The SPA fallback is too eager.**~~ Done. `static.ts` falls back to the page only for paths
+  that read as navigations — not for `/assets/*`, and not for an extension `TYPES` serves.
+- ~~**The shutdown logs four times.**~~ Done, though not as described: measured, it logged
+  *once*. The line that appeared twice was node's own `.env not found`, because `node --watch`
+  runs a supervisor and a child and both parsed `--env-file-if-exists`. `env.ts` now reads the
+  file itself, and `shutdown` is guarded so repeated signals tear down once.
 
 Before starting any of these, play a match first. This list is a guess at what is wrong; a
 session spent watching someone actually play beats it every time — Tier 1's turn timer was the

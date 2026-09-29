@@ -5,7 +5,32 @@
  * `undefined` that surfaces three hours into a match.
  */
 import { randomBytes } from 'node:crypto';
+import { join } from 'node:path';
 import { z } from 'zod';
+
+/**
+ * Read `apps/server/.env` into the environment, if there is one.
+ *
+ * This used to be `--env-file-if-exists=.env` on the `dev` script, which worked but printed
+ * `.env not found. Continuing without it.` *twice* on every start: `node --watch` runs a
+ * supervisor and a child, and both of them parse the flag even though only the child ever runs
+ * the server. Two identical notices above one `server.listening` reads like two servers came up.
+ *
+ * Doing it here instead means the process that actually serves is the one that reads the file,
+ * once, quietly. The semantics are the flag's: a real environment variable always wins over the
+ * file, and a missing file is not an error — a server configured entirely from the environment,
+ * which is how it runs in production, has no `.env` at all.
+ *
+ * Resolved against this module rather than the working directory, so it does not matter whether
+ * the server was started from the repo root or from `apps/server`.
+ */
+export function loadEnvFile(path = join(import.meta.dirname, '..', '.env')): void {
+  try {
+    process.loadEnvFile(path);
+  } catch {
+    /* no .env; the environment is the configuration */
+  }
+}
 
 const ms = (fallback: number) => z.coerce.number().int().positive().default(fallback);
 

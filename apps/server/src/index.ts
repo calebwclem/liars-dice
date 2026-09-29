@@ -8,12 +8,15 @@ import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
 import { createAuth } from './auth.ts';
 import { systemClock } from './clock.ts';
-import { loadConfig } from './env.ts';
+import { loadConfig, loadEnvFile } from './env.ts';
 import { Gateway } from './gateway.ts';
 import { createLogger } from './logger.ts';
 import { cryptoRng } from './rng.ts';
 import { staticSite } from './static.ts';
 
+// Before `loadConfig`, which reads `process.env` and validates it. See env.ts for why this is
+// here rather than a `--env-file-if-exists` flag on the dev script.
+loadEnvFile();
 const config = loadConfig();
 const log = createLogger(config.LOG_LEVEL, { service: 'liars-dice-server' });
 const clock = systemClock();
@@ -53,7 +56,18 @@ http.listen(config.PORT, config.HOST, () => {
   });
 });
 
+/**
+ * Shut down once, however many times we are asked.
+ *
+ * A signal sent to the process group reaches this process directly *and* by way of whatever
+ * supervises it, and an impatient second Ctrl-C arrives as another SIGINT on top. Without the
+ * guard each of those starts its own teardown: `gateway.close()` runs again over a closed
+ * server, and the log reports a shutdown per signal, which reads like several servers stopping.
+ */
+let stopping = false;
 const shutdown = (signal: string): void => {
+  if (stopping) return;
+  stopping = true;
   log.info('server.shuttingDown', { signal });
   void gateway.close().then(() => {
     http.close(() => {
