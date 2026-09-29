@@ -43,6 +43,12 @@ class FakeSocket implements SocketLike {
     this.emit('open');
   }
 
+  /** A close arriving from the network, as opposed to one this client asked for. */
+  fireClose(): void {
+    this.readyState = 3;
+    this.emit('close');
+  }
+
   private emit(type: string, event?: unknown): void {
     for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
@@ -310,5 +316,61 @@ describe('Finding the server', () => {
     });
     const { defaultEndpoint } = await import('../src/session.ts');
     expect(defaultEndpoint()).toBe('ws://localhost:8080');
+  });
+});
+
+describe('React StrictMode mounts the effect twice', () => {
+  /**
+   * In development React runs an effect, tears it down, and runs it again — deliberately, to
+   * surface exactly this class of bug. The session must survive connect → disconnect → connect
+   * with the *second* socket intact.
+   */
+  function strictMount(): { session: Session; sockets: FakeSocket[] } {
+    const sockets: FakeSocket[] = [];
+    const session = new Session('ws://test', () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket;
+    });
+    session.connect(); // mount
+    session.disconnect(); // cleanup
+    session.connect(); // mount again
+    return { session, sockets };
+  }
+
+  test('a superseded socket closing does not discard the live one', () => {
+    const { sockets } = strictMount();
+    const [first, second] = sockets;
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+
+    // The first socket's close event arrives *after* the second has been created — that is the
+    // whole point of the race. It must not touch the session's current socket.
+    first?.fireClose();
+    second?.open();
+
+    const hello = second?.messages().find((message) => message.type === 'hello');
+    expect(hello, 'the live socket never sent its hello').toBeDefined();
+  });
+
+  test('a superseded socket closing does not strand the app on the failure screen', () => {
+    const { session, sockets } = strictMount();
+    const [first, second] = sockets;
+    first?.fireClose();
+    second?.open();
+    second?.deliver(welcome);
+    expect(session.getState().stage.kind).toBe('lobby');
+  });
+
+  test('a genuine disconnection is still reported', () => {
+    // The guard must not swallow the case it exists to report: the socket actually in use going
+    // away with nothing to resume.
+    const { session, sockets } = strictMount();
+    const second = sockets[1];
+    second?.open();
+    second?.deliver(welcome);
+    expect(session.getState().stage.kind).toBe('lobby');
+    second?.fireClose();
+    expect(session.getState().stage.kind).toBe('failed');
   });
 });

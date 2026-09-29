@@ -152,7 +152,18 @@ export class Session {
     const socket = this.makeSocket(this.endpoint);
     this.socket = socket;
 
+    // Every handler below checks that this socket is still the one in use before touching any
+    // shared state. Without that guard a superseded socket's events act on its replacement:
+    // React's StrictMode mounts an effect, tears it down and mounts it again, so the very first
+    // thing that happens in development is connect → disconnect → connect, and the first
+    // socket's `close` lands *after* the second exists. It would null out the live socket, the
+    // hello would never be sent, no welcome would ever come back, and the app would sit on
+    // "cannot reach the table" forever. The server's gateway guards its socket map the same way
+    // and for the same reason.
+    const current = (): boolean => this.socket === socket;
+
     socket.addEventListener('open', () => {
+      if (!current()) return;
       this.attempt = 0;
       const token = readToken();
       this.send({
@@ -163,6 +174,7 @@ export class Session {
     });
 
     socket.addEventListener('message', (event: { data: string }) => {
+      if (!current()) return;
       // Parsed against the same Zod schema the server validates with. The browser gets this for
       // free by importing the protocol package; the Swift client needed a code generator to
       // reach a weaker version of it.
@@ -171,6 +183,7 @@ export class Session {
     });
 
     socket.addEventListener('close', () => {
+      if (!current()) return;
       this.socket = null;
       if (this.closing) return;
       if (this.resumable === null) {
