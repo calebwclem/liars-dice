@@ -607,3 +607,59 @@ will want.
 **What this does not include:** rule variants per party (parked, see PLAN.md), kicking, rejoining
 a party in progress, or join links. The code plus a group chat covers the playtest case, and
 every one of those is cheaper to add once people have actually used this.
+
+---
+
+## 2026-09-28 — The web client ships before iOS, and the server serves it
+
+**Decision:** Build `apps/web` now, out of phase order, and have `apps/server` serve its built
+output from the same port as the WebSocket. Host it for playtests with a Cloudflare tunnel from
+the owner's Mac rather than a PaaS.
+
+**Alternatives:** TestFlight for the first playtest; a separate static host or CDN for the page;
+Railway or Fly instead of a tunnel.
+
+**Why out of order.** The goal was "a test I can send to my brother this week", and hosting was
+assumed to be the blocker. It was not — *distribution* was. There is no way to hand somebody an
+iOS build without a paid developer account, a registered bundle id, an app icon that does not yet
+exist, and Apple's review of the build. A URL needs none of those. Phase 8 turned out to be the
+cheapest path to the thing Phase 7 was supposed to deliver, so it went first.
+
+**Why it was cheap.** Three things, all checked before committing to it:
+
+- **No codegen.** The browser imports `@liars-dice/protocol` and gets the Zod schemas and the
+  types together. The 881-line generator in `tools/codegen` exists because Swift cannot import
+  TypeScript — not because the protocol needs generating. The browser also validates every
+  inbound message against the same schema the server validates with, which is stricter than the
+  Codable decoding the Swift client does.
+- **The auth handshake was already browser-shaped.** The guest token travels in the `hello`
+  message body, not an HTTP header — and the browser `WebSocket` API cannot set headers. This
+  could easily have been a blocker and was not.
+- **`engine`, `protocol` and `bots` import no Node builtins** and export raw ESM TypeScript, so
+  Vite compiles them straight in with no build step of their own.
+
+**One origin for the page and the socket.** `apps/server` serves `apps/web/dist` through about
+sixty lines of `node:fs` — no dependency, CLAUDE.md is strict about those. The payoff is that one
+tunnel, or later one deploy, carries a whole playable game, and the client derives `wss://` from
+`window.location` so there is no endpoint configuration anywhere to get wrong. A WebSocket server
+that also serves files can be asked for its own source, so the traversal cases are tested
+explicitly rather than reasoned about. If this ever outgrows a single process, the split is
+clean: put `dist` behind a CDN and delete `static.ts`.
+
+**Why a tunnel rather than a host.** It is genuinely self-hosted, free, and ready in minutes,
+which suits a playtest that needs to happen this week. It dies with the laptop, which is the
+right trade for a scheduled session and the wrong one for anything permanent. The hosted options
+are costed in PLAN.md and none of this work is wasted on them — `play-web.sh` points at
+`:8080` exactly as a deploy would.
+
+**Shared client logic was deliberately not extracted.** `apps/web/src/session.ts` is the
+browser's version of the iOS `GameSession` + `MatchViewModel`, and it is a second implementation
+of the same state machine. It was written React-free and takes its socket through a seam, so the
+logic is testable without a renderer and *could* become `packages/client-core` later. Building
+that abstraction now, from one example, would be guessing at the interface; two clients have not
+yet disagreed about what the shape should be. Android will be the third data point, and the right
+moment to decide.
+
+**Not covered by tests:** the React components. The session state machine has 15 tests driven
+through its fake socket, but nothing renders a component — the same gap as iOS, and accepted on
+the same terms.

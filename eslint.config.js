@@ -66,6 +66,29 @@ export default tseslint.config(
   },
 
   {
+    // The browser client. Three rules that are right for a Node service and wrong for JSX:
+    //
+    //  - `no-confusing-void-expression` exists to catch an accidental `return doThing()`. Every
+    //    React event handler is exactly that shape on purpose, and wrapping a few hundred of them
+    //    in braces would be noise, not safety.
+    //  - `no-misused-spread` warns that `[...string]` splits by code point rather than grapheme.
+    //    True, and irrelevant: the only strings spread here are party codes, whose alphabet is
+    //    32 ASCII characters by construction.
+    //  - `switch-exhaustiveness-check` still applies, but a `default` branch is allowed to satisfy
+    //    it. `ErrorCode` is a 30-case union where most cases share one sentence of copy; listing
+    //    every one would make the readable ones harder to find.
+    files: ['apps/web/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-confusing-void-expression': 'off',
+      '@typescript-eslint/no-misused-spread': 'off',
+      '@typescript-eslint/switch-exhaustiveness-check': [
+        'error',
+        { allowDefaultCaseForExhaustiveSwitch: true, considerDefaultExhaustiveForUnions: true },
+      ],
+    },
+  },
+
+  {
     // This file belongs to no tsconfig, so there is no type information for it. Lint it
     // for syntax only rather than inventing a project just to cover the linter's config.
     files: ['eslint.config.js'],

@@ -41,16 +41,27 @@ packages/protocol/    Zod schemas for all client<->server messages. Version cons
 packages/bots/        Bot policies (pure; take a redacted view, return an action).
 apps/server/          WS gateway, matchmaker, room actors, persistence, auth.
 apps/cli/             Terminal client. Play a match against the bots, no server.
+apps/web/             React + Vite browser client. Served by apps/server when built.
 clients/ios/          SwiftUI app. project.yml (XcodeGen) — see below.
-tools/codegen/        protocol -> Swift/Kotlin model generation.
+tools/codegen/        protocol -> Swift/Kotlin model generation. iOS only; see below.
 scripts/play-ios.sh   One command: codegen, build, boot a sim, start the server, launch.
+scripts/play-web.sh   One command: build the web client, serve it, open a public tunnel.
 docs/RULES.md         CANONICAL RULESET. The spec. Read it before touching the engine.
 docs/PLAN.md          Phased roadmap, infrastructure, and parked ideas (rule variants).
 docs/DECISIONS.md     Append-only log of architectural decisions.
 docs/KICKOFF_PROMPT.md  The original brief. History, not a live spec.
 
-Planned, not yet created: apps/web/ (Phase 8), clients/android/ (Phase 9).
+Planned, not yet created: clients/android/ (Phase 9).
 ```
+
+**The web client needs no codegen.** It imports `@liars-dice/protocol` directly and gets the
+Zod schemas *and* the types — the generator exists because Swift cannot import TypeScript, not
+because the protocol needs generating. So `pnpm codegen` is an iOS concern only, and a protocol
+change reaches the browser the moment it typechecks.
+
+`apps/server` serves `apps/web/dist` when it has been built, so the page and the WebSocket share
+an origin. That is what lets one tunnel or one deploy carry a whole playable game, and why the
+browser derives `wss://` from `location` instead of being configured.
 
 Two build products that are not in git and must be regenerated rather than edited:
 `clients/ios/Sources/Generated/` (`pnpm codegen`) and `clients/ios/*.xcodeproj`
@@ -66,7 +77,10 @@ pnpm --filter engine test    # engine tests only (fast — use this while iterat
 pnpm --filter engine test:prop  # property-based invariant tests
 pnpm dev:server              # local server on :8080
 pnpm cli                     # terminal client — play a full game against bots, no server
+pnpm dev:web                 # browser client on :5173, talking to dev:server on :8080
+pnpm build:web               # build apps/web/dist, which the server then serves
 pnpm play:ios                # build, install and launch the app on a simulator, server and all
+pnpm play:web                # build the web client, serve it, and tunnel it to a public URL
 pnpm codegen                 # regenerate Swift/Kotlin models from packages/protocol
 pnpm fixtures                # re-capture clients/ios/Tests/Fixtures/transcript.json
 pnpm lint && pnpm typecheck && pnpm format:check   # all three before you call it done
@@ -149,6 +163,9 @@ without asking. A previous session did all three during a live match.
   a client never depend on anybody's dice.
 - Server: an integration test that drives 4 in-process clients through a full match to a
   winner, including a disconnect/resync.
+- Web: unit tests on the session state machine, driven through its injected socket seam — no
+  DOM, no network, no renderer. The React components themselves have no automated coverage,
+  the same gap as iOS below.
 - iOS: unit tests on the view models, the socket actor, and the session flow, all driven
   through `StubTransport` rather than a live server. `ProtocolDecodingTests` decodes a
   transcript captured from a real `Room` (`pnpm fixtures`), so the models are checked

@@ -4,6 +4,7 @@
  * whole server with a fake clock and no network.
  */
 import { createServer } from 'node:http';
+import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
 import { createAuth } from './auth.ts';
 import { systemClock } from './clock.ts';
@@ -11,10 +12,16 @@ import { loadConfig } from './env.ts';
 import { Gateway } from './gateway.ts';
 import { createLogger } from './logger.ts';
 import { cryptoRng } from './rng.ts';
+import { staticSite } from './static.ts';
 
 const config = loadConfig();
 const log = createLogger(config.LOG_LEVEL, { service: 'liars-dice-server' });
 const clock = systemClock();
+
+// The browser client, when it has been built (`pnpm build:web`). Serving it from here means the
+// page and the socket share an origin, so one tunnel or one deploy covers a playable game and the
+// client derives `wss://` from `location` rather than being configured.
+const web = staticSite(join(import.meta.dirname, '..', '..', 'web', 'dist'));
 
 const http = createServer((request, response) => {
   // A health endpoint, because Fly.io wants one and because "is it up?" should not require
@@ -24,7 +31,9 @@ const http = createServer((request, response) => {
     response.end(JSON.stringify({ ok: true }));
     return;
   }
-  response.writeHead(404).end();
+  void web.serve(request, response).then((served) => {
+    if (!served) response.writeHead(404).end();
+  });
 });
 
 const gateway = new Gateway({

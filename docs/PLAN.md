@@ -92,8 +92,12 @@ to stake — so you avoid the simulated-gambling rating and the extra scrutiny t
 with it. Guideline 4.7 and the gambling sections of the App Review Guidelines are worth
 reading before you build the economy of any future version.
 
-**Phase 8 — Web client.** React + Vite, reusing `engine` (for optimistic/legal-move
-hints) and `protocol` directly. Should be fast: the server doesn't change at all.
+**Phase 8 — Web client.** *Done (2026-09-28), brought forward.* React + Vite, importing
+`protocol` directly — no codegen, since it already speaks TypeScript. Built ahead of Phases 6
+and 7 because playtesting with real people needed it: there is no way to hand someone an iOS
+build without a developer account and Apple's review, and a URL needs neither. The server
+changed in exactly one way: it serves `apps/web/dist` when present, so the page and the socket
+share an origin.
 
 **Phase 9 — Android.** Kotlin + Compose, models generated from the same protocol.
 
