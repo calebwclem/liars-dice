@@ -374,3 +374,180 @@ describe('React StrictMode mounts the effect twice', () => {
     expect(session.getState().stage.kind).toBe('failed');
   });
 });
+
+/**
+ * Killing the connection mid-match.
+ *
+ * The backlog's word for what was missing here was "in anger": the backoff was written to mirror
+ * the iOS client's and the banner was wired up, but nothing had ever dropped a live match and
+ * watched what the client did next. These do that with a fake clock, which is the part a person
+ * turning their wifi off cannot do — a five-second outage exercises one retry, and the failures
+ * worth finding are in the fourth.
+ */
+describe('A connection that drops mid-match', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A session in a live match, and every socket it has opened. */
+  function playing(): { session: Session; sockets: FakeSocket[] } {
+    const sockets: FakeSocket[] = [];
+    const session = new Session('ws://test', () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket;
+    });
+    session.connect();
+    const first = sockets[0];
+    if (first === undefined) throw new Error('no socket was opened');
+    first.open();
+    first.deliver(welcome);
+    first.deliver({ type: 'matchFound', matchId: 'm1', seats: [] });
+    first.deliver(atSeq(7));
+    return { session, sockets };
+  }
+
+  const live = (sockets: FakeSocket[]): FakeSocket => {
+    const socket = sockets.at(-1);
+    if (socket === undefined) throw new Error('no socket was opened');
+    return socket;
+  };
+
+  /** A `state` at a given sequence number, so a resume has something to ask from. */
+  function atSeq(seq: number, kind: 'update' | 'sync' = 'update'): ServerMessage {
+    const message = state({ turnEndsInMs: 30_000, turnId: 'me' });
+    if (message.type !== 'state') throw new Error('not a state');
+    return { ...message, kind, seq, snapshot: message.snapshot };
+  }
+
+  test('it reconnects, resumes from where it left off, and keeps the feed', () => {
+    vi.useFakeTimers();
+    const { session, sockets } = playing();
+    const seen = session.getState().log.length;
+
+    live(sockets).fireClose();
+    expect(session.getState().reconnecting, 'no banner while the socket is gone').toBe(true);
+
+    vi.advanceTimersByTime(0);
+    expect(sockets.length, 'it never dialled again').toBe(2);
+    const second = live(sockets);
+    second.open();
+    expect(second.messages().map((message) => message.type)).toContain('hello');
+
+    second.deliver(welcome);
+    // R-18: the server holds the seat, and the client asks for what it missed rather than for
+    // the whole match. `afterSeq` is the last state it actually saw.
+    const resume = second.messages().find((message) => message.type === 'resume');
+    expect(resume?.['matchId']).toBe('m1');
+    expect(resume?.['afterSeq']).toBe(7);
+
+    second.deliver({ type: 'matchFound', matchId: 'm1', seats: [] });
+    second.deliver(atSeq(9, 'sync'));
+
+    expect(session.getState().reconnecting, 'the banner never came down').toBe(false);
+    expect(session.getState().stage.kind).toBe('playing');
+    expect(session.getState().matchId).toBe('m1');
+    // A sync is a catch-up on things already read; replaying them would double the feed.
+    expect(session.getState().log.length).toBe(seen);
+  });
+
+  test('the same match keeps its snapshot, rather than blanking to "Dealing…"', () => {
+    vi.useFakeTimers();
+    const { session, sockets } = playing();
+    live(sockets).fireClose();
+    vi.advanceTimersByTime(0);
+    live(sockets).open();
+    live(sockets).deliver(welcome);
+    live(sockets).deliver({ type: 'matchFound', matchId: 'm1', seats: [] });
+    // The re-announced match is the one already on screen, so the table must not be torn down
+    // while the resync is in flight.
+    expect(session.getState().snapshot).not.toBeNull();
+  });
+
+  test('a server that accepts and drops is backed off, not hammered', () => {
+    // The failure a person cannot produce by hand: `node --watch` restarting on a file save, or
+    // a server rolling, accepts the socket and drops it before saying welcome. Resetting the
+    // backoff on `open` rather than on a working session means every retry looks like the first
+    // one, and the client dials in a tight loop for as long as the server is down.
+    vi.useFakeTimers();
+    const { sockets } = playing();
+
+    live(sockets).fireClose();
+    vi.advanceTimersByTime(0);
+    expect(sockets.length).toBe(2);
+    live(sockets).open(); // accepted…
+    live(sockets).fireClose(); // …and dropped, with no welcome in between.
+
+    const dialled = sockets.length;
+    vi.advanceTimersByTime(0);
+    expect(sockets.length, 'it redialled with no delay at all').toBe(dialled);
+    vi.advanceTimersByTime(500);
+    expect(sockets.length, 'it never redialled').toBe(dialled + 1);
+  });
+
+  test('the backoff keeps growing while the server stays down', () => {
+    vi.useFakeTimers();
+    const { sockets } = playing();
+    // Each entry is the wait *before* that attempt, mirroring the iOS client's ladder.
+    for (const delay of [0, 500, 1_000, 2_000, 4_000, 4_000]) {
+      const dialled = sockets.length;
+      live(sockets).fireClose();
+      if (delay > 0) {
+        vi.advanceTimersByTime(delay - 1);
+        expect(sockets.length, `redialled before ${String(delay)}ms`).toBe(dialled);
+      }
+      vi.advanceTimersByTime(1);
+      expect(sockets.length, `never redialled after ${String(delay)}ms`).toBe(dialled + 1);
+      live(sockets).open();
+    }
+  });
+
+  test('a working session resets the ladder', () => {
+    vi.useFakeTimers();
+    const { sockets } = playing();
+    live(sockets).fireClose();
+    vi.advanceTimersByTime(0);
+    live(sockets).open();
+    live(sockets).fireClose();
+    vi.advanceTimersByTime(500);
+    live(sockets).open();
+    live(sockets).deliver(welcome); // back in the match
+
+    // The next outage is a fresh one and should be retried immediately, not after 1s.
+    const dialled = sockets.length;
+    live(sockets).fireClose();
+    vi.advanceTimersByTime(0);
+    expect(sockets.length, 'the ladder was not reset by a working connection').toBe(dialled + 1);
+  });
+
+  test('leaving while a retry is pending does not dial again afterwards', () => {
+    // React unmounts the app on navigation and StrictMode does it on purpose in development.
+    // A pending backoff timer that fires afterwards opens a socket nothing owns and nothing
+    // will ever close.
+    vi.useFakeTimers();
+    const { session, sockets } = playing();
+    live(sockets).fireClose();
+    session.disconnect();
+    vi.advanceTimersByTime(30_000);
+    expect(sockets.length, 'a disconnected session reconnected itself').toBe(1);
+  });
+
+  test('a drop outside a match is not retried at all', () => {
+    // Nothing is being held for them, so silently reconnecting would hide a dead server behind
+    // a lobby that looks fine until the first button does nothing.
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const session = new Session('ws://test', () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket;
+    });
+    session.connect();
+    live(sockets).open();
+    live(sockets).deliver(welcome);
+    live(sockets).fireClose();
+    vi.advanceTimersByTime(30_000);
+    expect(sockets.length).toBe(1);
+    expect(session.getState().stage.kind).toBe('failed');
+  });
+});

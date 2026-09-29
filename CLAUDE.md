@@ -170,9 +170,12 @@ table 4 × ⚅` — and reads clearly on a real screen. Do not re-add it without
   the obvious want is "again, same people" — and a private party is dissolved the moment it
   starts, so there is nothing to go back to. Probably the highest-value *feature* on this list;
   it needs the party to outlive the match it started, which is a server change, not a UI one.
-- **Reconnect, tested in anger.** `session.ts` mirrors the iOS backoff and the banner exists,
-  but no one has killed a connection mid-match in a browser and watched it recover. Turn wifi
-  off for five seconds during a match before trusting it.
+- ~~**Reconnect, tested in anger.**~~ Mostly done. Nine tests now drop a live match on a fake
+  clock and drive the recovery, which found two real bugs: the backoff reset on `open` rather
+  than on a working session, so a server that accepted and dropped (a `node --watch` restart, a
+  rolling deploy) was dialled in a zero-delay loop; and a pending retry fired after `disconnect`,
+  opening a socket nothing owned. **Still not done by hand** — nobody has turned wifi off for
+  five seconds on a real phone, and a fake clock cannot tell you how it feels.
 - ~~**The SPA fallback is too eager.**~~ Done. `static.ts` falls back to the page only for paths
   that read as navigations — not for `/assets/*`, and not for an extension `TYPES` serves.
 - ~~**The shutdown logs four times.**~~ Done, though not as described: measured, it logged

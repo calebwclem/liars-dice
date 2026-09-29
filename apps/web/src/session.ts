@@ -55,6 +55,12 @@ export interface SessionState {
 }
 
 const TOKEN_KEY = 'liarsdice.guestToken';
+/**
+ * How long to wait before each reconnection attempt. The first is immediate — most drops are a
+ * blip and the seat is only held for 45 seconds (R-18) — and it settles at four seconds, which
+ * is frequent enough to catch a server coming back and slow enough not to be a flood.
+ */
+const BACKOFF_MS = [0, 500, 1_000, 2_000, 4_000] as const;
 /** Events kept for the feed. Enough to see the round, not enough to leak memory over an hour. */
 const LOG_LIMIT = 60;
 
@@ -120,6 +126,8 @@ export class Session {
   private resumable: { matchId: string; afterSeq: number } | null = null;
   private attempt = 0;
   private closing = false;
+  /** The pending backoff timer, so leaving can cancel it. */
+  private retry: ReturnType<typeof setTimeout> | null = null;
 
   private readonly makeSocket: (url: string) => SocketLike;
 
@@ -149,6 +157,7 @@ export class Session {
 
   connect(): void {
     this.closing = false;
+    this.clearRetry();
     const socket = this.makeSocket(this.endpoint);
     this.socket = socket;
 
@@ -164,7 +173,8 @@ export class Session {
 
     socket.addEventListener('open', () => {
       if (!current()) return;
-      this.attempt = 0;
+      // Note what is *not* reset here: the backoff. An open socket is not yet a working session
+      // — see the `welcome` case, which is where the ladder goes back to the bottom.
       const token = readToken();
       this.send({
         type: 'hello',
@@ -194,9 +204,14 @@ export class Session {
       }
       // R-18: the server holds the seat for 45 seconds. There is time, but not a lot of it.
       this.set({ reconnecting: true });
-      const delay = [0, 500, 1_000, 2_000, 4_000][this.attempt] ?? 4_000;
+      const delay = BACKOFF_MS[this.attempt] ?? BACKOFF_MS[BACKOFF_MS.length - 1] ?? 4_000;
       this.attempt += 1;
-      setTimeout(() => {
+      this.retry = setTimeout(() => {
+        this.retry = null;
+        // The view can go away during the wait — a navigation, or StrictMode tearing the effect
+        // down. Without this check the timer opens a socket that nothing owns and nothing will
+        // close, and `connect` would clear `closing` on its way past.
+        if (this.closing) return;
         this.connect();
       }, delay);
     });
@@ -208,8 +223,15 @@ export class Session {
 
   disconnect(): void {
     this.closing = true;
+    this.clearRetry();
     this.socket?.close();
     this.socket = null;
+  }
+
+  private clearRetry(): void {
+    if (this.retry === null) return;
+    clearTimeout(this.retry);
+    this.retry = null;
   }
 
   private send(message: ClientMessage): void {
@@ -283,6 +305,11 @@ export class Session {
     switch (message.type) {
       case 'welcome': {
         writeToken(message.token);
+        // *Here* is where the backoff goes back to the bottom. Resetting it when the socket
+        // opened instead meant a server that accepts a connection and drops it before saying
+        // anything — one restarting under `node --watch`, or a deploy rolling — was retried
+        // every attempt at the first rung, which is no delay at all, for as long as it was down.
+        this.attempt = 0;
         this.set({ playerId: message.playerId, reconnecting: false });
         if (this.resumable !== null) {
           this.send({

@@ -64,6 +64,12 @@ class FakeSocket implements SocketLike {
     this.emit('open');
   }
 
+  /** A close arriving from the network, rather than one this client asked for. */
+  fireClose(): void {
+    this.readyState = 3;
+    this.emit('close');
+  }
+
   deliver(message: ServerMessage): void {
     this.emit('message', { data: JSON.stringify(message) });
   }
@@ -137,12 +143,13 @@ function snapshot(options: {
   myDice: Face[];
   round?: number;
   events?: ProtocolEvent[];
+  kind?: 'update' | 'sync';
 }): ServerMessage {
   const onTurn = options.turnId === 'me';
   const index = options.round ?? 0;
   return {
     type: 'state',
-    kind: 'update',
+    kind: options.kind ?? 'update',
     matchId: 'm1',
     seq: 1,
     events: options.events ?? [],
@@ -460,6 +467,50 @@ describe('The app, mounted', () => {
     ]);
     // The separator says which round it is, so the line beneath it must not say it again.
     expect(feed).not.toContain('Round 1: You open');
+  });
+
+  test('a connection dropped mid-match shows the banner, then comes back to the table', async () => {
+    // The backlog's "reconnect, tested in anger". The state machine's own tests cover the
+    // ladder and the resume; this is the half that only shows up once React is mounting — that
+    // the banner appears, that the table is not torn down while the resync is in flight, and
+    // that the app does not end up on "cannot reach the table" with a match still running.
+    const { sockets } = await mount();
+    const first = live(sockets);
+    // StrictMode has already mounted, torn down and remounted the effect, so this is not
+    // necessarily the first socket in the list — count from here rather than from zero.
+    const before = sockets.length;
+    act(() => {
+      first.open();
+      first.deliver(welcome);
+      first.deliver(snapshot({ turnId: 'me', myDice: [1, 2, 3, 4, 5] }));
+    });
+    expect(text()).toContain('Round 1');
+
+    act(() => {
+      first.fireClose();
+    });
+    expect(text(), 'nothing told the player the connection had gone').toContain('Reconnecting');
+    // The match is still on screen underneath. Blanking it would read as the match being over.
+    expect(text()).toContain('Round 1');
+
+    // The first rung of the ladder is immediate, so one turn of the event loop is the wait.
+    await act(async () => {
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+    expect(sockets.length, 'it never dialled again').toBe(before + 1);
+
+    const second = live(sockets);
+    act(() => {
+      second.open();
+      second.deliver(welcome);
+      second.deliver({ type: 'matchFound', matchId: 'm1', seats: [] });
+      second.deliver(snapshot({ turnId: 'me', myDice: [1, 2, 3, 4, 5], kind: 'sync' }));
+    });
+
+    expect(text(), 'the banner never came down').not.toContain('Reconnecting');
+    expect(text()).not.toContain('Cannot reach the table');
+    expect(text()).toContain('Round 1');
+    expect(text()).toContain('Your turn');
   });
 
   test('it is the turn row, not the picker, that says whose turn it is', async () => {
