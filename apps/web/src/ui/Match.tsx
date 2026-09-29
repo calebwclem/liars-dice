@@ -7,10 +7,12 @@
  * button for UX and forbids deciding legality, and taking the *answers* from the server rather
  * than the rules is how both hold at once.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ErrorCode, Face, MatchSnapshot, ProtocolEvent } from '@liars-dice/protocol';
 import { Die, Hand, counts, shortName, spoken } from './Dice.tsx';
 import { TurnRing } from './TurnRing.tsx';
+import { atLeast, useRevealBeat, type RevealBeat } from './useRevealBeat.ts';
+import { isMuted, playTurnChime, setMuted, setTitleForTurn } from './attention.ts';
 
 const FACES: readonly Face[] = [1, 2, 3, 4, 5, 6];
 
@@ -40,6 +42,29 @@ export function Match({
 
   const [face, setFace] = useState<Face>(6);
   const [quantity, setQuantity] = useState(1);
+  const [muted, setMutedState] = useState(isMuted);
+
+  // A reveal is identified by the round it ended, so a new one restarts the sequence and an
+  // unrelated snapshot arriving mid-reveal does not rewind it.
+  const revealing = phase.kind === 'reveal' ? view.lastReveal : null;
+  const beat = useRevealBeat(revealing === null ? null : String(revealing.roundIndex));
+
+  // R-16/R-17: a browser tab is easy to lose behind a video call, and a turn nobody noticed is a
+  // turn played for them. Chime once on the transition into your turn, not on every snapshot.
+  const wasMyTurn = useRef(false);
+  useEffect(() => {
+    setTitleForTurn(myTurn);
+    if (myTurn && !wasMyTurn.current) playTurnChime();
+    wasMyTurn.current = myTurn;
+  }, [myTurn]);
+
+  // Leaving the match should not leave the tab shouting about a turn that is over.
+  useEffect(
+    () => () => {
+      setTitleForTurn(false);
+    },
+    [],
+  );
 
   const minFor = (candidate: Face): number | null =>
     bidOptions?.options.find((option) => option.face === candidate)?.minQuantity ?? null;
@@ -75,9 +100,25 @@ export function Match({
             · ones are wild
           </div>
         </div>
-        <button className="quiet" onClick={leave}>
-          Leave
-        </button>
+        <span className="row" style={{ gap: 2 }}>
+          <button
+            className="quiet"
+            onClick={() => {
+              const next = !muted;
+              setMuted(next);
+              setMutedState(next);
+              if (!next) playTurnChime();
+            }}
+            aria-pressed={muted}
+            aria-label={muted ? 'unmute the turn chime' : 'mute the turn chime'}
+            title={muted ? 'Turn chime off' : 'Turn chime on'}
+          >
+            {muted ? '🔇' : '🔔'}
+          </button>
+          <button className="quiet" onClick={leave}>
+            Leave
+          </button>
+        </span>
       </div>
 
       <div className="panel stack">
@@ -117,9 +158,7 @@ export function Match({
         </div>
       ) : null}
 
-      {phase.kind === 'reveal' && view.lastReveal !== null ? (
-        <Reveal reveal={view.lastReveal} me={me} />
-      ) : null}
+      {revealing !== null ? <Reveal reveal={revealing} me={me} beat={beat} /> : null}
 
       {phase.kind === 'ended' ? (
         <div className="panel center stack">
@@ -140,8 +179,8 @@ export function Match({
           <Hand
             dice={view.you.dice}
             size={44}
-            {...(phase.kind === 'reveal' && view.lastReveal !== null
-              ? { countingFace: view.lastReveal.bid.face }
+            {...(revealing !== null && atLeast(beat, 'counting')
+              ? { countingFace: revealing.bid.face }
               : {})}
           />
         </div>
@@ -172,14 +211,13 @@ export function Match({
 
       {myTurn ? (
         <div className="panel stack">
-          <div className="row wrap" style={{ gap: 6 }}>
+          <div className="face-picker">
             {FACES.map((candidate) => (
               <button
                 key={candidate}
                 onClick={() => setFace(candidate)}
                 disabled={minFor(candidate) === null}
                 style={{
-                  padding: 6,
                   border: candidate === face ? '2px solid var(--brass)' : '2px solid transparent',
                 }}
                 aria-pressed={candidate === face}
@@ -247,13 +285,21 @@ export function Match({
   );
 }
 
-/** R-10: every cup comes up, and only here. */
-function Reveal({
+/**
+ * R-10: every cup comes up, and only here.
+ *
+ * Drawn a beat at a time. The hands appear face-down first and turn over together, which is what
+ * makes the moment read as cups being lifted rather than a table being redrawn; the dice that
+ * count light up a beat later, so you can see the count being made rather than being told it.
+ */
+export function Reveal({
   reveal,
   me,
+  beat,
 }: {
   reveal: NonNullable<MatchSnapshot['view']['lastReveal']>;
   me: string | null;
+  beat: RevealBeat;
 }) {
   return (
     <div className="panel stack">
@@ -264,24 +310,31 @@ function Reveal({
       </div>
       {Object.entries(reveal.hands).map(([playerId, dice]) => (
         <div key={playerId} className="row" style={{ gap: 10 }}>
-          <span className="small" style={{ width: 92 }}>
-            {shortName(playerId, me)}
-          </span>
+          <span className="small reveal-name">{shortName(playerId, me)}</span>
           <span className="row" style={{ gap: 4 }}>
             {dice.map((die, index) => (
-              <Die key={index} face={die} size={26} counting={counts(die, reveal.bid.face)} />
+              <Die
+                key={index}
+                {...(atLeast(beat, 'hands') ? { face: die } : { hidden: true })}
+                size={26}
+                counting={atLeast(beat, 'counting') && counts(die, reveal.bid.face)}
+              />
             ))}
           </span>
         </div>
       ))}
-      <div>
-        {spoken(reveal.actualCount, reveal.bid.face)} —{' '}
-        <strong>{reveal.bidStands ? 'the bid was good' : 'the bid was a lie'}</strong>
-      </div>
-      <div className="muted small">
-        {shortName(reveal.loserId, me)} loses a die — {reveal.loserDiceCount} left
-        {reveal.eliminatedId !== null ? ` · ${shortName(reveal.eliminatedId, me)} is out` : ''}
-      </div>
+      {atLeast(beat, 'verdict') ? (
+        <div className="appear">
+          {spoken(reveal.actualCount, reveal.bid.face)} —{' '}
+          <strong>{reveal.bidStands ? 'the bid was good' : 'the bid was a lie'}</strong>
+        </div>
+      ) : null}
+      {atLeast(beat, 'outcome') ? (
+        <div className="muted small appear">
+          {shortName(reveal.loserId, me)} loses a die — {reveal.loserDiceCount} left
+          {reveal.eliminatedId !== null ? ` · ${shortName(reveal.eliminatedId, me)} is out` : ''}
+        </div>
+      ) : null}
     </div>
   );
 }

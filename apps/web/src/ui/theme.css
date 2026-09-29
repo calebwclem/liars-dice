@@ -139,6 +139,7 @@ button.quiet {
 
 .die {
   display: inline-grid;
+  flex: none;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: 2px;
@@ -263,4 +264,94 @@ input.code-field {
 .turn-row.mine {
   background: rgba(200, 164, 87, 0.12);
   border-color: rgba(200, 164, 87, 0.45);
+}
+
+/* ─── reveal pacing ────────────────────────────────────────────────────── */
+
+.appear {
+  animation: appear 220ms ease-out both;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.reveal-name {
+  width: 92px;
+  flex: none;
+}
+
+/* A die turning over is the cup coming up. Kept short — it happens five at a time. */
+.die {
+  transition: background 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appear {
+    animation: none;
+  }
+  .die {
+    transition: none;
+  }
+  button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ─── phones ───────────────────────────────────────────────────────────── */
+
+.app {
+  /* Clear the notch and the home indicator. Harmless everywhere else. */
+  padding-left: max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
+  padding-bottom: max(48px, calc(env(safe-area-inset-bottom) + 24px));
+}
+
+@media (max-width: 420px) {
+  .app {
+    padding-top: 16px;
+    gap: 14px;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+
+  /* Four 52px cells plus gaps overflow a 320px screen; let them shrink instead. */
+  .code span {
+    width: clamp(40px, 18vw, 52px);
+    font-size: clamp(28px, 11vw, 38px);
+    padding: 12px 0;
+  }
+
+  .reveal-name {
+    width: 68px;
+  }
+
+  /* The hand of five is the widest fixed row on the page. */
+  .feed {
+    max-height: 120px;
+  }
+}
+
+/* The bid picker is the one row that must never wrap awkwardly: six faces, one line. */
+.face-picker {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.face-picker button {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: center;
+  padding: 6px 0;
+  min-width: 0;
 }
