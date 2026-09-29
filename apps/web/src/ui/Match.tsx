@@ -10,11 +10,13 @@
 import { useEffect, useState } from 'react';
 import type { ErrorCode, Face, MatchSnapshot, ProtocolEvent } from '@liars-dice/protocol';
 import { Die, Hand, counts, shortName, spoken } from './Dice.tsx';
+import { TurnRing } from './TurnRing.tsx';
 
 const FACES: readonly Face[] = [1, 2, 3, 4, 5, 6];
 
 export function Match({
   snapshot,
+  turnDeadline,
   log,
   me,
   lastError,
@@ -23,6 +25,7 @@ export function Match({
   leave,
 }: {
   snapshot: MatchSnapshot;
+  turnDeadline: number | null;
   log: readonly ProtocolEvent[];
   me: string | null;
   lastError: ErrorCode | null;
@@ -144,6 +147,29 @@ export function Match({
         </div>
       ) : null}
 
+      {phase.kind === 'bidding' ? (
+        <div className={`turn-row${myTurn ? ' mine' : ''}`}>
+          {turnDeadline === null ? (
+            <span className="muted small">thinking…</span>
+          ) : (
+            <TurnRing deadline={turnDeadline} total={snapshot.turnMs} />
+          )}
+          <span>
+            {myTurn ? (
+              <strong>Your turn</strong>
+            ) : (
+              <span className="muted">Waiting for {shortName(phase.turnId, me)}</span>
+            )}
+            {/* R-17, said before it happens rather than after. */}
+            {myTurn && turnDeadline !== null ? (
+              <div className="muted small">
+                Run out of time and the smallest legal raise is played for you.
+              </div>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
+
       {myTurn ? (
         <div className="panel stack">
           <div className="row wrap" style={{ gap: 6 }}>
@@ -206,15 +232,9 @@ export function Match({
             </div>
           ) : null}
         </div>
-      ) : (
-        <div className="muted center small">
-          {phase.kind === 'bidding'
-            ? `Waiting for ${shortName(phase.turnId, me)}…`
-            : phase.kind === 'reveal'
-              ? 'Counting the dice…'
-              : ''}
-        </div>
-      )}
+      ) : phase.kind === 'reveal' ? (
+        <div className="muted center small">Counting the dice…</div>
+      ) : null}
 
       {lastError !== null ? <div className="error center">{readable(lastError)}</div> : null}
 

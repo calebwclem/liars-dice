@@ -246,3 +246,21 @@ input.code-field {
   font-size: 13px;
   z-index: 10;
 }
+
+/* ─── whose turn, and how long is left ─────────────────────────────────── */
+
+.turn-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid transparent;
+}
+
+/* Your own turn is the one moment the screen should be impossible to misread. */
+.turn-row.mine {
+  background: rgba(200, 164, 87, 0.12);
+  border-color: rgba(200, 164, 87, 0.45);
+}

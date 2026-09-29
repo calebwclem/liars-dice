@@ -80,6 +80,7 @@ export function App() {
             ) : (
               <Match
                 snapshot={state.snapshot}
+                turnDeadline={state.turnDeadline}
                 log={state.log}
                 me={state.playerId}
                 lastError={state.lastError}

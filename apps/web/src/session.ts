@@ -40,6 +40,15 @@ export interface SessionState {
   readonly playerId: string | null;
   readonly matchId: string | null;
   readonly snapshot: MatchSnapshot | null;
+  /**
+   * R-16: when the current turn runs out, on *this* machine's clock, or null when nobody is on
+   * it — during a reveal, or on a bot's turn, which gets a think delay instead of a deadline.
+   *
+   * Computed here rather than in the view because the server sends a *relative* figure: how long
+   * was left when it built the snapshot. Turning that into an absolute moment has to happen the
+   * instant the message lands, or every render re-bases the countdown and the ring never moves.
+   */
+  readonly turnDeadline: number | null;
   readonly log: readonly ProtocolEvent[];
   readonly lastError: ErrorCode | null;
   readonly reconnecting: boolean;
@@ -89,6 +98,7 @@ export class Session {
     playerId: null,
     matchId: null,
     snapshot: null,
+    turnDeadline: null,
     log: [],
     lastError: null,
     reconnecting: false,
@@ -236,7 +246,13 @@ export class Session {
     const { matchId } = this.state;
     if (matchId !== null) this.send({ type: 'leave', matchId });
     this.resumable = null;
-    this.set({ stage: { kind: 'lobby' }, matchId: null, snapshot: null, log: [] });
+    this.set({
+      stage: { kind: 'lobby' },
+      matchId: null,
+      snapshot: null,
+      turnDeadline: null,
+      log: [],
+    });
   }
 
   // ─── inbound ────────────────────────────────────────────────────────────────
@@ -287,16 +303,22 @@ export class Session {
         this.set({
           stage: { kind: 'playing' },
           matchId: message.matchId,
-          ...(this.state.matchId === message.matchId ? {} : { snapshot: null, log: [] }),
+          ...(this.state.matchId === message.matchId
+            ? {}
+            : { snapshot: null, turnDeadline: null, log: [] }),
         });
         return;
 
       case 'state': {
         this.resumable = { matchId: message.matchId, afterSeq: message.seq };
+        const { turnEndsInMs } = message.snapshot;
+        // Only a human seat gets a deadline; the server sends null for bots and for reveals.
+        const onClock = turnEndsInMs !== null && message.snapshot.view.phase.kind === 'bidding';
         this.set({
           stage: { kind: 'playing' },
           matchId: message.matchId,
           snapshot: message.snapshot,
+          turnDeadline: onClock ? Date.now() + turnEndsInMs : null,
           // `sync` is a catch-up after a reconnect; its events have mostly been seen already.
           log:
             message.kind === 'sync'

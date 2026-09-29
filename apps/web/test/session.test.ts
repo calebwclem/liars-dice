@@ -77,6 +77,38 @@ const party = (hostId: string, members: string[]): ServerMessage => ({
   maxSize: 6,
 });
 
+/** A `state` message carrying just enough of a snapshot for the timer tests. */
+function state(options: {
+  turnEndsInMs: number | null;
+  turnId: string;
+  phase?: { kind: 'reveal' };
+}): ServerMessage {
+  return {
+    type: 'state',
+    kind: 'update',
+    matchId: 'm1',
+    seq: 1,
+    events: [],
+    snapshot: {
+      view: {
+        matchId: 'm1',
+        seq: 1,
+        config: { startingDice: 5, maxDice: 5 },
+        you: { id: 'me', seat: 0, dice: [1, 2, 3, 4, 5] },
+        players: [{ id: 'me', seat: 0, diceCount: 5, eliminated: false }],
+        phase: options.phase ?? { kind: 'bidding', turnId: options.turnId },
+        round: { index: 0, starterId: 'me', bids: [] },
+        lastReveal: null,
+        totalDiceInPlay: 5,
+      },
+      turnEndsInMs: options.turnEndsInMs,
+      turnMs: 30_000,
+      seats: [],
+      bidOptions: null,
+    },
+  };
+}
+
 describe('Party codes', () => {
   test('a typed code is cleaned up rather than refused', () => {
     // The wire contract is strict and uppercase. Being told "bad message" for typing lowercase
@@ -202,6 +234,49 @@ describe('The session', () => {
     const before = notified;
     socket.deliver(party('me', ['me']));
     expect(notified).toBe(before);
+  });
+
+  test('R-16: a relative deadline becomes an absolute one the moment it lands', () => {
+    // The server sends how long was left when it built the snapshot, never a timestamp — a
+    // browser with a skewed clock would draw the wrong ring. Re-basing has to happen once, on
+    // arrival; doing it per render would leave the countdown permanently stuck at full.
+    const { session, socket } = connected();
+    socket.deliver(welcome);
+    const before = Date.now();
+    socket.deliver(state({ turnEndsInMs: 30_000, turnId: 'me' }));
+    const after = Date.now();
+
+    const { turnDeadline } = session.getState();
+    expect(turnDeadline).not.toBeNull();
+    expect(turnDeadline).toBeGreaterThanOrEqual(before + 30_000);
+    expect(turnDeadline).toBeLessThanOrEqual(after + 30_000);
+  });
+
+  test('R-16: no deadline on a bot turn, which gets a think delay instead', () => {
+    const { session, socket } = connected();
+    socket.deliver(welcome);
+    socket.deliver(state({ turnEndsInMs: null, turnId: 'bot_1234' }));
+    expect(session.getState().turnDeadline).toBeNull();
+  });
+
+  test('R-16: no deadline during a reveal, even if one is still reported', () => {
+    // Belt and braces: the room clears `turnEndsAt` when it moves to a reveal, but a snapshot
+    // built mid-transition must not leave a ring counting down over the revealed hands.
+    const { session, socket } = connected();
+    socket.deliver(welcome);
+    socket.deliver(state({ turnEndsInMs: 12_000, turnId: 'me', phase: { kind: 'reveal' } }));
+    expect(session.getState().turnDeadline).toBeNull();
+  });
+
+  test('leaving a match clears the deadline with everything else', () => {
+    const { session, socket } = connected();
+    socket.deliver(welcome);
+    socket.deliver({ type: 'matchFound', matchId: 'm1', seats: [] });
+    socket.deliver(state({ turnEndsInMs: 30_000, turnId: 'me' }));
+    expect(session.getState().turnDeadline).not.toBeNull();
+    session.leaveMatch();
+    expect(session.getState().turnDeadline).toBeNull();
+    expect(session.getState().snapshot).toBeNull();
   });
 
   test('a bid is not sent before there is a match to send it to', () => {
