@@ -5,6 +5,7 @@
  * that they render as a placeholder box, which is how "Revealed: 4 × ▫" once reached a
  * screenshot. Nine grid cells and a pip in the right ones works everywhere.
  */
+import type { CSSProperties } from 'react';
 import type { Face } from '@liars-dice/protocol';
 
 /** Which of the nine cells carry a pip, on the usual layout. */
@@ -61,20 +62,50 @@ export function Die({
   );
 }
 
-/** A row of dice, for a hand. */
-export function Hand({
+/**
+ * A hand of dice, rolled onto the table.
+ *
+ * `rollToken` says *which* roll this is — the round index, in practice. It is part of every
+ * die's key, so a new round throws the old elements away and mounts fresh ones, and a freshly
+ * mounted element runs its CSS animation from the first frame again. There is no imperative
+ * "play that animation again" in CSS, so handing React a new key is how a roll is replayed;
+ * it is the browser's version of the iOS `RolledHand` dropping `landed` back to false.
+ *
+ * Within a round the token does not change, so an unrelated snapshot — a bid, a tick of the
+ * turn clock — re-renders the same elements and leaves a roll in flight alone.
+ */
+export function RolledHand({
   dice,
   size = 40,
   countingFace,
+  rollToken,
 }: {
   dice: readonly Face[];
   size?: number;
   countingFace?: Face;
+  rollToken: number;
 }) {
   return (
     <span className="row hand" style={{ gap: size * 0.18 }}>
       {dice.map((face, index) => (
-        <Die key={index} face={face} size={size} counting={counts(face, countingFace)} />
+        <span
+          key={`${String(rollToken)}:${String(index)}`}
+          className="rolled"
+          // How far a die falls and which way it twists scale with the die, so the same
+          // animation reads right at any size; the stagger is the iOS client's 60ms, so the
+          // hand lands left to right rather than all at once. The cast is the standard way to
+          // put a custom property in a React style object — `CSSProperties` knows the CSS
+          // properties by name and nothing about `--roll-lift`.
+          style={
+            {
+              '--roll-lift': `${String(Math.round(-size * 1.6))}px`,
+              '--roll-spin': index % 2 === 0 ? '-38deg' : '38deg',
+              animationDelay: `${String(index * 60)}ms`,
+            } as CSSProperties
+          }
+        >
+          <Die face={face} size={size} counting={counts(face, countingFace)} />
+        </span>
       ))}
     </span>
   );

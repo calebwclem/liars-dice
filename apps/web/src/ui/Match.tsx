@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { ErrorCode, Face, MatchSnapshot, ProtocolEvent } from '@liars-dice/protocol';
-import { Die, Hand, counts, possessive, shortName, spoken, subject } from './Dice.tsx';
+import { Die, RolledHand, counts, possessive, shortName, spoken, subject } from './Dice.tsx';
 import { TurnRing } from './TurnRing.tsx';
 import { atLeast, useRevealBeat, type RevealBeat } from './useRevealBeat.ts';
 import { isMuted, playTurnChime, setMuted, setTitleForTurn } from './attention.ts';
@@ -176,9 +176,13 @@ export function Match({
       {view.you !== null ? (
         <div className="stack">
           <div className="section-label">YOUR HAND</div>
-          <Hand
+          <RolledHand
             dice={view.you.dice}
             size={44}
+            /* R-03: a new round is a new roll, and the hand should be seen to arrive rather
+               than to have quietly changed. The round index is the token — it advances
+               exactly when the cups are shaken again. */
+            rollToken={round.index}
             {...(revealing !== null && atLeast(beat, 'counting')
               ? { countingFace: revealing.bid.face }
               : {})}

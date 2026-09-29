@@ -663,3 +663,32 @@ moment to decide.
 **Not covered by tests:** the React components. The session state machine has 15 tests driven
 through its fake socket, but nothing renders a component — the same gap as iOS, and accepted on
 the same terms.
+
+---
+
+## 2026-09-29 — A CSS animation is replayed by remounting, and the round index is the token
+
+**Decision:** The web hand animates its roll with a plain CSS `@keyframes`, and replays it on a
+new round by making `rollToken` part of every die's React key. A changed key unmounts the old
+elements and mounts new ones, and a freshly mounted element runs its animation from the first
+frame. The token is `view.round.index` directly, not a counter of its own.
+
+**Alternatives:** a state flag flipped in an effect, mirroring the iOS `RolledHand` (rejected:
+the effect has to null the transition, flip, and flip back on the next tick — SwiftUI needs that
+dance because it animates a value, and CSS does not); the Web Animations API (rejected: a real
+imperative `.play()`, but it moves the timing and easing out of the stylesheet, where the rest
+of this client's motion lives, and needs a ref per die); toggling a class off and back on
+(rejected: it only works with a forced reflow between the two, which is exactly the kind of
+thing that gets "tidied up" later and silently stops working).
+
+**Why the round index and not a counter:** the engine advances `round.index` in
+`applyAdvanceRound`, the same step that re-rolls the hands under R-03. The index therefore
+changes when and only when the dice do — a counter maintained in the client would be a second
+source of truth for something the snapshot already states. iOS keeps its own `rollToken` because
+its view model diffs snapshots anyway; the browser has nothing to diff.
+
+**What this makes testable:** the mechanism *is* the DOM identity, so "did the roll replay" is
+`expect(dice).not.toBe(previousDice)` in the mounted-DOM project, with no timers and no layout.
+happy-dom does no layout and cannot see anything move; what it can do is resolve the cascade, so
+the companion assertion is that `.rolled` matches a rule at all and that the keyframes it names
+exist. Both were verified by breaking them on purpose.

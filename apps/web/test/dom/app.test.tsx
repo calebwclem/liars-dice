@@ -132,8 +132,9 @@ const welcome: ServerMessage = {
   token: 'tok',
 };
 
-function snapshot(options: { turnId: string; myDice: Face[] }): ServerMessage {
+function snapshot(options: { turnId: string; myDice: Face[]; round?: number }): ServerMessage {
   const onTurn = options.turnId === 'me';
+  const index = options.round ?? 0;
   return {
     type: 'state',
     kind: 'update',
@@ -151,7 +152,7 @@ function snapshot(options: { turnId: string; myDice: Face[] }): ServerMessage {
           { id: 'them', seat: 1, diceCount: 5, eliminated: false },
         ],
         phase: { kind: 'bidding', turnId: options.turnId },
-        round: { index: 0, starterId: 'me', bids: [] },
+        round: { index, starterId: 'me', bids: [] },
         lastReveal: null,
         totalDiceInPlay: options.myDice.length + 5,
       },
@@ -350,6 +351,74 @@ describe('The app, mounted', () => {
     const padding = (die as HTMLElement | null)?.style.padding ?? '';
     expect(padding).toMatch(/px$/);
     expect(padding).not.toContain('%');
+  });
+
+  test('a new round re-rolls the hand; a mid-round update does not', async () => {
+    // What makes the roll replay is the dice being *new elements* — a CSS animation has no
+    // imperative restart, so a remount is the whole mechanism. Asserting on the nodes is
+    // therefore asserting on the animation: keep the keys stable across a round and the hand
+    // silently redraws, which is exactly the bug this is here for.
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver(snapshot({ turnId: 'me', myDice: [1, 2, 3, 4, 5], round: 0 }));
+    });
+    const rolled = (): Element[] => [...(host?.querySelectorAll('.hand .rolled') ?? [])];
+    const first = rolled();
+    expect(first.length, 'the hand drew no rolled dice').toBe(5);
+
+    // Same round, new snapshot: a bid landed, the clock ticked. The roll must not rewind.
+    act(() => {
+      socket.deliver(snapshot({ turnId: 'them', myDice: [1, 2, 3, 4, 5], round: 0 }));
+    });
+    expect(rolled(), 'a mid-round update restarted the roll').toEqual(first);
+
+    // A new round, dealt. Same faces on purpose — an identical hand still has to be seen to
+    // be thrown, or a round that changes nothing does not read as a round at all.
+    act(() => {
+      socket.deliver(snapshot({ turnId: 'me', myDice: [1, 2, 3, 4, 5], round: 1 }));
+    });
+    const second = rolled();
+    expect(second.length).toBe(5);
+    for (const [index, die] of second.entries()) {
+      expect(die, `die ${String(index)} was reused across a round`).not.toBe(first[index]);
+    }
+  });
+
+  test('a rolled die is actually given the animation, staggered across the hand', async () => {
+    // happy-dom does no layout, so it cannot see anything move. It resolves the cascade, which
+    // catches the failure worth catching here: a rule that matches nothing, or an animation
+    // naming keyframes that do not exist — both of which draw a perfectly still hand.
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver(snapshot({ turnId: 'me', myDice: [1, 2, 3, 4, 5] }));
+    });
+    const dice = [...(host?.querySelectorAll('.hand .rolled') ?? [])] as HTMLElement[];
+
+    const animation = window.getComputedStyle(dice[0] as Element).animation;
+    expect(animation, '.rolled matched no rule at all').not.toBe('');
+    const name = animation.split(' ')[0] ?? '';
+    // Anchored on the brace, not a substring: `@keyframes roll-in-renamed` contains
+    // `@keyframes roll-in`, so a `toContain` here passes against the very rename it is for.
+    expect(THEME, `the animation names @keyframes ${name}, which is not defined`).toMatch(
+      new RegExp(`@keyframes\\s+${name}\\s*\\{`),
+    );
+
+    // Each die lands after the one before it; all five at once is a redraw, not a roll.
+    expect(dice.map((die) => die.style.animationDelay)).toEqual([
+      '0ms',
+      '60ms',
+      '120ms',
+      '180ms',
+      '240ms',
+    ]);
+    // How far it falls scales with the die, so the same animation reads right at any size.
+    expect(dice[0]?.style.getPropertyValue('--roll-lift')).toBe('-70px');
   });
 
   test('it is the turn row, not the picker, that says whose turn it is', async () => {

@@ -171,6 +171,35 @@ button.quiet {
   background: var(--die-pip);
 }
 
+/* ─── the roll ──────────────────────────────────────────── */
+
+/* A new round is a new roll: each die drops in with a twist and settles, a beat after the one
+   before it. How far it falls and which way it turns come from `--roll-lift` and `--roll-spin`,
+   which Dice.tsx derives from the die's size, so the same rule would read right on a smaller
+   hand. The overshoot in the easing is the die bouncing on the felt.
+
+   Restarting it is React's job, not this file's: a new round re-keys the dice, and a remounted
+   element runs its animation from the first frame. */
+.rolled {
+  display: inline-flex;
+  flex: none;
+  animation: roll-in 460ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+
+@keyframes roll-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--roll-lift, -70px)) rotate(var(--roll-spin, -38deg));
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .seat {
   display: flex;
   align-items: center;
@@ -300,6 +329,10 @@ input.code-field {
 
 @media (prefers-reduced-motion: reduce) {
   .appear {
+    animation: none;
+  }
+  /* The dice are simply on the table. Nothing is withheld — only the falling is dropped. */
+  .rolled {
     animation: none;
   }
   .die {
