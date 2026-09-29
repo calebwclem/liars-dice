@@ -111,6 +111,11 @@ real people needs it: the public queue backfills with bots after ten seconds, so
 This is also where a per-party ruleset selector belongs when the variants below are built — the
 lobby is the one screen where a player can see what they are about to play before it starts.
 
+## Web client backlog
+
+Lives in `CLAUDE.md` rather than here, so every session sees it without being told. This file
+keeps the phases and the parked ideas; that one keeps what is queued next for the browser.
+
 ## Rule variants (parked — not v1)
 
 Palifico was removed on 2026-09-27 because the owner plays without it (see

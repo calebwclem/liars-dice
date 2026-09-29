@@ -155,6 +155,40 @@ without asking. A previous session did all three during a live match.
 - Prefer value types. No force-unwrapping (`!`) outside tests.
 - No third-party dependencies in v1 unless asked.
 
+## Web client — the backlog
+
+Ordered by how much each changes the experience, not by effort. Tier 1 (turn timer, paced
+reveal, turn attention, phone layout) is done and on `main`.
+
+**Tier 2 — makes it feel like a game**
+
+- **Animate the dice roll.** New round, hand tumbles in. iOS has it (`RolledHand`, keyed on a
+  `rollToken`); the web hand just redraws, so a new round does not read as having started.
+- **Group the event feed by round.** It is one flat reversed list. A "Round 3" separator makes
+  it scannable rather than a wall of sentences.
+
+*(Cut from this tier: "make the standing bid more prominent". It has its own panel now — `on the
+table 4 × ⚅` — and reads clearly on a real screen. Do not re-add it without new evidence.)*
+
+**Tier 3 — rough edges**
+
+- **Rematch.** The end of a match offers only "Back to the lobby". After game one with a friend
+  the obvious want is "again, same people" — and a private party is dissolved the moment it
+  starts, so there is nothing to go back to. Probably the highest-value *feature* on this list;
+  it needs the party to outlive the match it started, which is a server change, not a UI one.
+- **Reconnect, tested in anger.** `session.ts` mirrors the iOS backoff and the banner exists,
+  but no one has killed a connection mid-match in a browser and watched it recover. Turn wifi
+  off for five seconds during a match before trusting it.
+- **The SPA fallback is too eager.** `static.ts` serves `index.html` for *any* path it cannot
+  find, including a missing `/assets/*.js`. Harmless today; once deployed somewhere permanent, a
+  stale cached page requesting a deleted bundle gets HTML back and fails confusingly.
+- **The shutdown logs four times.** `node --watch` runs a supervisor and a child, both of which
+  log the signal. Cosmetic, but it reads like four servers were running.
+
+Before starting any of these, play a match first. This list is a guess at what is wrong; a
+session spent watching someone actually play beats it every time — Tier 1's turn timer was the
+only item on the original list that turned out to be a functional gap rather than taste.
+
 ## Testing bar before a phase is "done"
 
 - Engine: every rule ID covered (`coverage.test.ts` enforces it); property tests assert
