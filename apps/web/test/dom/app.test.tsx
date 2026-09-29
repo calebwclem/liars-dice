@@ -222,6 +222,89 @@ describe('The app, mounted', () => {
     expect(text()).toContain('Waiting for one more');
   });
 
+  test('the host can choose to play without bots, and it reaches the wire', async () => {
+    // The option always existed and the server always honoured it, but it was an unstyled
+    // checkbox on a dark table and read as no option at all. These assertions are about it
+    // being *visible and reachable*, which is the half that was broken.
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver({
+        type: 'partyState',
+        code: 'WXYZ',
+        hostId: 'me',
+        members: ['me', 'them'],
+        minSize: 2,
+        maxSize: 6,
+      });
+    });
+
+    const choices = [...(host?.querySelectorAll('.segmented button') ?? [])] as HTMLButtonElement[];
+    expect(choices.map((button) => button.textContent)).toEqual([
+      'Just us2 players',
+      'Add botsfill the empty seats',
+    ]);
+    // Bots by default — a fuller table is the fuller game — but plainly a choice.
+    expect(choices[1]?.getAttribute('aria-pressed')).toBe('true');
+
+    act(() => {
+      choices[0]?.click();
+    });
+    expect(choices[0]?.getAttribute('aria-pressed')).toBe('true');
+    expect(choices[1]?.getAttribute('aria-pressed')).toBe('false');
+
+    const start = [...(host?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Start the match',
+    );
+    act(() => {
+      start?.click();
+    });
+    const sent = socket.sent.map((frame) => JSON.parse(frame) as Record<string, unknown>);
+    const startParty = sent.find((message) => message['type'] === 'startParty');
+    expect(startParty?.['fillWithBots'], 'the choice never reached the server').toBe(false);
+  });
+
+  test('a full party cannot ask for bots there is no room for', async () => {
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver({
+        type: 'partyState',
+        code: 'WXYZ',
+        hostId: 'me',
+        members: ['me', 'b', 'c', 'd', 'e', 'f'],
+        minSize: 2,
+        maxSize: 6,
+      });
+    });
+    const choices = [...(host?.querySelectorAll('.segmented button') ?? [])] as HTMLButtonElement[];
+    expect(choices[1]?.disabled).toBe(true);
+    expect(choices[1]?.textContent).toContain('table is full');
+  });
+
+  test("a guest is not offered the host's controls", async () => {
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver({
+        type: 'partyState',
+        code: 'WXYZ',
+        hostId: 'them',
+        members: ['them', 'me'],
+        minSize: 2,
+        maxSize: 6,
+      });
+    });
+    expect(host?.querySelector('.segmented')).toBeNull();
+    expect(text()).toContain('Waiting for');
+  });
+
   test('the table draws a hand, and every die actually has its pips', async () => {
     // happy-dom does no layout, so a die's *size* cannot be checked here. Its pips can — and a
     // missing pip is what a player actually sees, since a blank white square is not a die.

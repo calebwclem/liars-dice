@@ -191,6 +191,8 @@ function Party({
   const [copied, setCopied] = useState(false);
   const isHost = party.hostId === me;
   const canStart = party.members.length >= party.minSize;
+  /** No empty seats left, so there is nothing for a bot to fill. */
+  const full = party.members.length >= party.maxSize;
 
   const share = async () => {
     // The link is the whole point of the web client: the code alone needs explaining, a URL
@@ -235,16 +237,38 @@ function Party({
 
       {isHost ? (
         <div className="stack">
-          <label className="row">
-            <input
-              type="checkbox"
-              checked={fillWithBots}
-              onChange={(event) => setFillWithBots(event.target.checked)}
-              disabled={party.members.length >= party.maxSize}
-            />
-            <span>Fill empty seats with bots</span>
-          </label>
-          <button className="primary" disabled={!canStart} onClick={() => start(fillWithBots)}>
+          {/*
+            A choice, shown as one — not a checkbox. The option to play without bots always
+            existed and the server has always honoured it, but an unstyled checkbox on a dark
+            table read as no option at all. Both outcomes are named, and the one that is going
+            to happen is the one that looks selected.
+          */}
+          <div className="segmented" role="group" aria-label="Who plays">
+            <button
+              className={fillWithBots ? '' : 'selected'}
+              aria-pressed={!fillWithBots}
+              onClick={() => setFillWithBots(false)}
+            >
+              <span>Just us</span>
+              <span className="sub">
+                {party.members.length} player{party.members.length === 1 ? '' : 's'}
+              </span>
+            </button>
+            <button
+              className={fillWithBots ? 'selected' : ''}
+              aria-pressed={fillWithBots}
+              onClick={() => setFillWithBots(true)}
+              disabled={full}
+            >
+              <span>Add bots</span>
+              <span className="sub">{full ? 'table is full' : 'fill the empty seats'}</span>
+            </button>
+          </div>
+          <button
+            className="primary"
+            disabled={!canStart}
+            onClick={() => start(fillWithBots && !full)}
+          >
             {canStart ? 'Start the match' : 'Waiting for one more'}
           </button>
         </div>

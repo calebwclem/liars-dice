@@ -17,6 +17,8 @@ struct PrivateGameView: View {
 
     private var isHost: Bool { party.hostId == myPlayerId }
     private var canStart: Bool { party.members.count >= party.minSize }
+    /// No empty seats left, so there is nothing for a bot to fill.
+    private var full: Bool { party.members.count >= party.maxSize }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -61,13 +63,30 @@ struct PrivateGameView: View {
 
             if isHost {
                 VStack(spacing: 12) {
-                    Toggle("Fill empty seats with bots", isOn: $fillWithBots)
-                        .font(.callout)
-                        .tint(Theme.brass)
-                        .disabled(party.members.count >= party.maxSize)
+                    // A named choice rather than a toggle, matching the web client. A toggle
+                    // states one option and leaves you to infer the other; here both outcomes
+                    // are on screen and the one that will happen is the one that is selected.
+                    //
+                    // Swift note: `Picker` with `.segmented` binds to any `Hashable` — the tags
+                    // below are `Bool`, so the binding is the same `fillWithBots` the button
+                    // sends. No separate enum to keep in step.
+                    Picker("Who plays", selection: $fillWithBots) {
+                        Text("Just us").tag(false)
+                        Text(full ? "Table is full" : "Add bots").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(full)
+
+                    Text(
+                        fillWithBots && !full
+                            ? "Empty seats are filled with bots."
+                            : "\(party.members.count) player\(party.members.count == 1 ? "" : "s"), nobody else."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSoft)
 
                     Button(canStart ? "Start the match" : "Waiting for one more") {
-                        start(fillWithBots)
+                        start(fillWithBots && !full)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.brass)
