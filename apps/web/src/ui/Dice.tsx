@@ -117,6 +117,27 @@ export function spoken(quantity: number, face: Face): string {
   return `${String(quantity)} ${quantity === 1 ? SINGULAR[face] : PLURAL[face]}`;
 }
 
+/**
+ * "Dana bids" / "You bid".
+ *
+ * Third-person copy meeting a second-person name is what produces "You opens" and "You loses a
+ * die". Every sentence in the feed that has a subject goes through here, so the verb is chosen
+ * at the same moment as the name rather than assumed.
+ */
+export function subject(
+  playerId: string,
+  me: string | null,
+  third: string,
+  second: string,
+): string {
+  return `${shortName(playerId, me)} ${playerId === me ? second : third}`;
+}
+
+/** "Dana's" / "your". */
+export function possessive(playerId: string, me: string | null): string {
+  return playerId === me ? 'your' : `${shortName(playerId, me)}'s`;
+}
+
 /** A guest id is a UUID; nobody wants to read one. */
 export function shortName(playerId: string, me: string | null): string {
   if (playerId === me) return 'You';

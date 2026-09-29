@@ -87,7 +87,7 @@ extension ProtocolEvent {
         case .matchStarted(let event):
             "Match started — \(event.playerIds.count) players, \(event.startingDice) dice each"
         case .roundStarted(let event):
-            "Round \(event.index + 1): \(naming.name(event.starterId)) opens"
+            "Round \(event.index + 1): \(naming.subject(event.starterId, "opens", "open"))"
         case .bidMade(let event):
             "\(naming.subject(event.playerId, "bids", "bid")) \(event.bid.spoken)"
         case .dudoCalled(let event):

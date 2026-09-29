@@ -564,6 +564,31 @@ final class EventCopyTests: XCTestCase {
         isMe: { $0 == "me" }
     )
 
+    /// Every event variant, from your own point of view, swept for third-person verbs. The
+    /// spot-checks below missed "You opens" entirely — it lived in the one case that used
+    /// `name` rather than `subject`.
+    func testNothingSaidAboutYouIsInTheThirdPerson() {
+        let mine: [ProtocolEvent] = [
+            .roundStarted(.init(index: 0, starterId: "me", diceCounts: ["me": 5])),
+            .bidMade(.init(playerId: "me", bid: Bid(quantity: 2, face: .six))),
+            .dudoCalled(.init(playerId: "me", bidderId: "dana", bid: Bid(quantity: 2, face: .six))),
+            .dieLost(.init(playerId: "me", diceCount: 4)),
+            .playerEliminated(.init(playerId: "me")),
+            .matchEnded(.init(winnerId: "me")),
+            .playerReconnected(.init(playerId: "me")),
+            .botTookOver(.init(playerId: "me", reason: .afk)),
+            .controlReturned(.init(playerId: "me")),
+        ]
+        let thirdPerson = ["You opens", "You bids", "You challenges", "You loses",
+                           "You wins", "You is", "You has", "You's"]
+        for event in mine {
+            let line = event.summary(naming)
+            for wrong in thirdPerson {
+                XCTAssertFalse(line.contains(wrong), "\(event.type): \"\(line)\"")
+            }
+        }
+    }
+
     func testTheVerbAgreesWithWhoItIsAbout() {
         // "You loses a die" is what third-person copy does to a second-person name. Both of these
         // appeared on a real device before the feed learned to conjugate.
@@ -635,7 +660,7 @@ final class EventCopyTests: XCTestCase {
             ProtocolEvent.roundStarted(
                 .init(index: 2, starterId: "me", diceCounts: [:])
             ).summary(naming),
-            "Round 3: You opens"
+            "Round 3: You open"
         )
     }
 

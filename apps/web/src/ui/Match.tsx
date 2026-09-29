@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { ErrorCode, Face, MatchSnapshot, ProtocolEvent } from '@liars-dice/protocol';
-import { Die, Hand, counts, shortName, spoken } from './Dice.tsx';
+import { Die, Hand, counts, possessive, shortName, spoken, subject } from './Dice.tsx';
 import { TurnRing } from './TurnRing.tsx';
 import { atLeast, useRevealBeat, type RevealBeat } from './useRevealBeat.ts';
 import { isMuted, playTurnChime, setMuted, setTitleForTurn } from './attention.ts';
@@ -304,9 +304,8 @@ export function Reveal({
   return (
     <div className="panel stack">
       <div>
-        <strong>{shortName(reveal.challengerId, me)}</strong> challenged{' '}
-        <strong>{shortName(reveal.bidderId, me)}</strong>&rsquo;s{' '}
-        {spoken(reveal.bid.quantity, reveal.bid.face)}
+        {subject(reveal.challengerId, me, 'challenged', 'challenged')}{' '}
+        {possessive(reveal.bidderId, me)} {spoken(reveal.bid.quantity, reveal.bid.face)}
       </div>
       {Object.entries(reveal.hands).map(([playerId, dice]) => (
         <div key={playerId} className="row" style={{ gap: 10 }}>
@@ -331,47 +330,50 @@ export function Reveal({
       ) : null}
       {atLeast(beat, 'outcome') ? (
         <div className="muted small appear">
-          {shortName(reveal.loserId, me)} loses a die — {reveal.loserDiceCount} left
-          {reveal.eliminatedId !== null ? ` · ${shortName(reveal.eliminatedId, me)} is out` : ''}
+          {subject(reveal.loserId, me, 'loses', 'lose')} a die — {reveal.loserDiceCount} left
+          {reveal.eliminatedId !== null
+            ? ` · ${subject(reveal.eliminatedId, me, 'is out', 'are out')}`
+            : ''}
         </div>
       ) : null}
     </div>
   );
 }
 
-function summarise(event: ProtocolEvent, me: string | null): string {
+export function summarise(event: ProtocolEvent, me: string | null): string {
   const name = (id: string) => shortName(id, me);
+  const says = (id: string, third: string, second: string) => subject(id, me, third, second);
   switch (event.type) {
     case 'matchStarted':
       return `Match started — ${String(event.playerIds.length)} players`;
     case 'roundStarted':
-      return `Round ${String(event.index + 1)}: ${name(event.starterId)} opens`;
+      return `Round ${String(event.index + 1)}: ${says(event.starterId, 'opens', 'open')}`;
     case 'bidMade':
-      return `${name(event.playerId)} bid ${spoken(event.bid.quantity, event.bid.face)}`;
+      return `${says(event.playerId, 'bids', 'bid')} ${spoken(event.bid.quantity, event.bid.face)}`;
     case 'dudoCalled':
-      return `${name(event.playerId)} challenged ${name(event.bidderId)}`;
+      return `${says(event.playerId, 'challenges', 'challenge')} ${possessive(event.bidderId, me)} bid`;
     case 'diceRevealed':
       return `Revealed: ${spoken(event.reveal.actualCount, event.reveal.bid.face)} — ${
         event.reveal.bidStands ? 'the bid was good' : 'the bid was a lie'
       }`;
     case 'dieLost':
-      return `${name(event.playerId)} lost a die — ${String(event.diceCount)} left`;
+      return `${says(event.playerId, 'loses', 'lose')} a die — ${String(event.diceCount)} left`;
     case 'playerEliminated':
-      return `${name(event.playerId)} is out`;
+      return says(event.playerId, 'is out', 'are out');
     case 'matchEnded':
-      return `${name(event.winnerId)} wins`;
+      return says(event.winnerId, 'wins', 'win');
     case 'playerTimedOut':
       return event.autoBid === null
         ? `${name(event.playerId)} ran out of time again`
         : `${name(event.playerId)} ran out of time — a minimum raise was played`;
     case 'playerDisconnected':
-      return `${name(event.playerId)} disconnected`;
+      return says(event.playerId, 'disconnected', 'disconnected');
     case 'playerReconnected':
-      return `${name(event.playerId)} is back`;
+      return says(event.playerId, 'is back', 'are back');
     case 'botTookOver':
-      return `A bot is playing ${name(event.playerId)}'s seat`;
+      return `A bot is playing ${possessive(event.playerId, me)} seat`;
     case 'controlReturned':
-      return `${name(event.playerId)} has the seat back`;
+      return says(event.playerId, 'has the seat back', 'have the seat back');
     case 'matchAbandoned':
       return 'Match abandoned — everyone left';
     default: {
