@@ -28,17 +28,30 @@ export function Die({
   counting?: boolean;
   hidden?: boolean;
 }) {
-  const style = { width: size, height: size };
+  // Padding and gap in pixels derived from `size`, never percentages. A percentage padding
+  // resolves against the *containing block's* width, not the element's own — so a 44px die in a
+  // 490px row was given 59px of padding a side and ballooned to 117px, taking the pips' grid
+  // down to zero in the process. That is the bug this comment exists to stop coming back.
+  const style = {
+    width: size,
+    height: size,
+    padding: Math.round(size * 0.13),
+    gap: Math.max(1, Math.round(size * 0.05)),
+  };
   const label = hidden ? 'a hidden die' : face === undefined ? 'a die' : `a ${String(face)}`;
   if (hidden || face === undefined) {
     return <span className="die hidden" style={style} role="img" aria-label={label} />;
   }
+  // `data-face` is for tests: happy-dom does no layout, so asserting on pip count is the only
+  // way to check a die is drawn correctly, and that needs the face to be findable.
+
   const pips = LAYOUT[face];
   return (
     <span
       className={`die${counting ? ' counting' : ''}`}
       style={style}
       role="img"
+      data-face={face}
       aria-label={counting ? `${label}, counting` : label}
     >
       {Array.from({ length: 9 }, (_, cell) => (
@@ -59,7 +72,7 @@ export function Hand({
   countingFace?: Face;
 }) {
   return (
-    <span className="row" style={{ gap: size * 0.18 }}>
+    <span className="row hand" style={{ gap: size * 0.18 }}>
       {dice.map((face, index) => (
         <Die key={index} face={face} size={size} counting={counts(face, countingFace)} />
       ))}
@@ -74,7 +87,7 @@ export function counts(face: Face, countingFace: Face | undefined): boolean {
   return countingFace !== 1 && face === 1;
 }
 
-const SPOKEN: Record<Face, string> = {
+const PLURAL: Record<Face, string> = {
   1: 'ones',
   2: 'twos',
   3: 'threes',
@@ -83,10 +96,25 @@ const SPOKEN: Record<Face, string> = {
   6: 'sixes',
 };
 
+/**
+ * Spelled out rather than derived.
+ *
+ * Dropping the final letter of the plural works for five of the six faces and turns "sixes" into
+ * "sixe", which is how "1 sixe" reached a screenshot. English is the one thing in this repo with
+ * no rules engine behind it; a table is cheaper than a clever rule that is wrong once in six.
+ */
+const SINGULAR: Record<Face, string> = {
+  1: 'one',
+  2: 'two',
+  3: 'three',
+  4: 'four',
+  5: 'five',
+  6: 'six',
+};
+
 /** "1 four", "4 fours". */
 export function spoken(quantity: number, face: Face): string {
-  const word = quantity === 1 ? SPOKEN[face].slice(0, -1) : SPOKEN[face];
-  return `${String(quantity)} ${word}`;
+  return `${String(quantity)} ${quantity === 1 ? SINGULAR[face] : PLURAL[face]}`;
 }
 
 /** A guest id is a UUID; nobody wants to read one. */

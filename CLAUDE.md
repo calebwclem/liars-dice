@@ -163,9 +163,16 @@ without asking. A previous session did all three during a live match.
   a client never depend on anybody's dice.
 - Server: an integration test that drives 4 in-process clients through a full match to a
   winner, including a disconnect/resync.
-- Web: unit tests on the session state machine, driven through its injected socket seam — no
-  DOM, no network, no renderer. The React components themselves have no automated coverage,
-  the same gap as iOS below.
+- Web: two vitest projects. `test/*.test.ts` runs under plain **node** — the session is
+  deliberately DOM-free, and keeping those tests there is what stops a DOM dependency creeping
+  in. `test/dom/**` runs under **happy-dom** and mounts the real component tree in `StrictMode`,
+  as `main.tsx` does, driven by a fake socket.
+
+  happy-dom does no layout, so it cannot catch anything about *size or position*. It can resolve
+  the cascade, which catches a rule that does nothing at all — the difference between a pip that
+  is the wrong size and one that has no size. When you add a test there, break the thing on
+  purpose and watch it fail: a fake socket that closed synchronously made the StrictMode test
+  pass against the very bug it was written for.
 - iOS: unit tests on the view models, the socket actor, and the session flow, all driven
   through `StubTransport` rather than a live server. `ProtocolDecodingTests` decodes a
   transcript captured from a real `Room` (`pnpm fixtures`), so the models are checked

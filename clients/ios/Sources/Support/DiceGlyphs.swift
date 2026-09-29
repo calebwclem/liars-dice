@@ -18,7 +18,19 @@ extension Face {
     }
 
     /// Singular, for "a four" rather than "a fours".
-    var spokenSingular: String { String(spoken.dropLast()) }
+    ///
+    /// Spelled out rather than derived: dropping the plural's last letter works for five of the
+    /// six faces and turns "sixes" into "sixe", which is how "1 sixe" reached a screenshot.
+    var spokenSingular: String {
+        switch self {
+        case .one: "one"
+        case .two: "two"
+        case .three: "three"
+        case .four: "four"
+        case .five: "five"
+        case .six: "six"
+        }
+    }
 
     /// "1 four", "4 fours". English is the one thing here with no test in packages/engine.
     func spoken(count: Int) -> String {

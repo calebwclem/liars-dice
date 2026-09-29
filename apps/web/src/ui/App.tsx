@@ -8,10 +8,14 @@ import { Session, isCompleteCode, normaliseCode, type PartyState } from '../sess
 import { Match, readable } from './Match.tsx';
 import { shortName } from './Dice.tsx';
 
-export function App() {
+export function App({ session: provided }: { session?: Session } = {}) {
   // One session for the life of the page. `useSyncExternalStore` is React's supported way to
   // read a store that lives outside React — which this one deliberately does.
-  const session = useMemo(() => new Session(), []);
+  //
+  // The optional prop is a test seam. Rendering the real component tree against a fake socket is
+  // the only way to catch the bugs that live in the wiring rather than in either half: a
+  // StrictMode double-mount discarding the live socket looked fine in every unit test.
+  const session = useMemo(() => provided ?? new Session(), [provided]);
   const state = useSyncExternalStore(session.subscribe, session.getState);
 
   useEffect(() => {

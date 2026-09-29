@@ -656,6 +656,12 @@ final class PluralisationTests: XCTestCase {
         XCTAssertEqual(Face.three.spoken(count: 1), "1 three")
         XCTAssertEqual(Face.three.spoken(count: 0), "0 threes")
         XCTAssertEqual(Face.six.spoken(count: 2), "2 sixes")
+        // Every face, because the old rule — drop the plural's last letter — was right five
+        // times out of six and this test only ever asked it about the five.
+        XCTAssertEqual(
+            Face.allCases.map { $0.spoken(count: 1) },
+            ["1 one", "1 two", "1 three", "1 four", "1 five", "1 six"]
+        )
     }
 
     func testTheFeedSaysOneOfAFaceProperly() {

@@ -1,0 +1,285 @@
+import { afterEach, describe, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { StrictMode, act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import type { Face, ServerMessage } from '@liars-dice/protocol';
+import { PROTOCOL_VERSION } from '@liars-dice/protocol';
+import { App } from '../../src/ui/App.tsx';
+import { Session, type SocketLike } from '../../src/session.ts';
+
+/**
+ * The real stylesheet, in the document.
+ *
+ * happy-dom does no layout, so this cannot check that anything is the right *size*. It can
+ * resolve the cascade, which is enough to catch a rule that does nothing — and "does nothing" is
+ * precisely how the pips failed: `width` and `height` on an inline element are ignored, so they
+ * were zero-sized rather than wrong-sized.
+ *
+ * Read off disk rather than imported: Vitest stubs CSS modules by default, and `?raw` came back
+ * as an empty string — which would have made every assertion below pass against no stylesheet
+ * at all. Vitest runs with the package root as its cwd.
+ */
+const THEME = readFileSync('src/ui/theme.css', 'utf8');
+
+/**
+ * The real component tree, mounted.
+ *
+ * Every other test in this package checks a piece: the state machine with a fake socket, a
+ * component rendered to a string. Two bugs got past all of them and reached a phone, and both
+ * lived in the wiring rather than in either half — a StrictMode double-mount discarding the live
+ * socket, and dice drawn with a percentage padding that resolves against the wrong box.
+ *
+ * So this mounts `App` in `StrictMode`, exactly as `main.tsx` does, and drives it with a fake
+ * socket. happy-dom does no layout, so it cannot catch *visual* faults; what it does catch is a
+ * component that never renders, never connects, or renders the wrong thing.
+ */
+class FakeSocket implements SocketLike {
+  readyState = 1;
+  readonly sent: string[] = [];
+  private readonly listeners = new Map<string, ((event: unknown) => void)[]>();
+
+  send(data: string): void {
+    this.sent.push(data);
+  }
+
+  close(): void {
+    this.readyState = 3;
+    // Deferred, because a real WebSocket never fires `close` synchronously from `close()`. A
+    // fake that did made the StrictMode race untestable: the first socket's close landed while
+    // it was still the current one, and the guard it was meant to exercise never ran.
+    queueMicrotask(() => {
+      this.emit('close');
+    });
+  }
+
+  addEventListener(type: 'open' | 'close' | 'error', listener: () => void): void;
+  addEventListener(type: 'message', listener: (event: { data: string }) => void): void;
+  addEventListener(type: string, listener: (event: never) => void): void {
+    const existing = this.listeners.get(type) ?? [];
+    existing.push(listener as (event: unknown) => void);
+    this.listeners.set(type, existing);
+  }
+
+  open(): void {
+    this.emit('open');
+  }
+
+  deliver(message: ServerMessage): void {
+    this.emit('message', { data: JSON.stringify(message) });
+  }
+
+  private emit(type: string, event?: unknown): void {
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+
+  sentTypes(): string[] {
+    return this.sent.map((frame) => (JSON.parse(frame) as { type: string }).type);
+  }
+}
+
+let root: Root | null = null;
+let host: HTMLDivElement | null = null;
+
+/** Mount the app in StrictMode, as `main.tsx` does, and hand back the sockets it opened. */
+async function mount(): Promise<{ sockets: FakeSocket[] }> {
+  const sockets: FakeSocket[] = [];
+  const session = new Session('ws://test', () => {
+    const socket = new FakeSocket();
+    sockets.push(socket);
+    return socket;
+  });
+  const style = document.createElement('style');
+  style.textContent = THEME;
+  document.head.append(style);
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () => {
+    root?.render(
+      <StrictMode>
+        <App session={session} />
+      </StrictMode>,
+    );
+    await Promise.resolve();
+  });
+  // Let StrictMode's teardown close land. This is the moment the bug used to happen.
+  await act(async () => {
+    await Promise.resolve();
+  });
+  return { sockets };
+}
+
+const text = (): string => host?.textContent ?? '';
+const live = (sockets: FakeSocket[]): FakeSocket => {
+  const socket = sockets.at(-1);
+  if (socket === undefined) throw new Error('no socket was opened');
+  return socket;
+};
+
+afterEach(() => {
+  act(() => {
+    root?.unmount();
+  });
+  host?.remove();
+  root = null;
+  host = null;
+});
+
+const welcome: ServerMessage = {
+  type: 'welcome',
+  protocolVersion: PROTOCOL_VERSION,
+  playerId: 'me',
+  token: 'tok',
+};
+
+function snapshot(options: { turnId: string; myDice: Face[] }): ServerMessage {
+  const onTurn = options.turnId === 'me';
+  return {
+    type: 'state',
+    kind: 'update',
+    matchId: 'm1',
+    seq: 1,
+    events: [],
+    snapshot: {
+      view: {
+        matchId: 'm1',
+        seq: 1,
+        config: { startingDice: 5, maxDice: 5 },
+        you: { id: 'me', seat: 0, dice: options.myDice },
+        players: [
+          { id: 'me', seat: 0, diceCount: options.myDice.length, eliminated: false },
+          { id: 'them', seat: 1, diceCount: 5, eliminated: false },
+        ],
+        phase: { kind: 'bidding', turnId: options.turnId },
+        round: { index: 0, starterId: 'me', bids: [] },
+        lastReveal: null,
+        totalDiceInPlay: options.myDice.length + 5,
+      },
+      turnEndsInMs: onTurn ? 30_000 : null,
+      turnMs: 30_000,
+      seats: [
+        { playerId: 'me', seat: 0, connected: true, control: 'human', controlReason: null },
+        { playerId: 'them', seat: 1, connected: true, control: 'human', controlReason: null },
+      ],
+      bidOptions: onTurn
+        ? {
+            options: [1, 2, 3, 4, 5, 6].map((face) => ({ face: face as Face, minQuantity: 1 })),
+            maxQuantity: 10,
+          }
+        : null,
+    },
+  };
+}
+
+describe('The app, mounted', () => {
+  test('it connects and reaches the lobby through a StrictMode double mount', async () => {
+    // The exact failure that reached a phone: the first socket's close discarded the second,
+    // the hello was never sent, and the app sat on "cannot reach the table" forever.
+    const { sockets } = await mount();
+    expect(sockets.length).toBeGreaterThanOrEqual(1);
+
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+    });
+    expect(socket.sentTypes(), 'the live socket never sent its hello').toContain('hello');
+
+    act(() => {
+      socket.deliver(welcome);
+    });
+    expect(text()).toContain('Find a match');
+    expect(text()).not.toContain('Cannot reach the table');
+  });
+
+  test('the lobby offers both ways into a game', async () => {
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+    });
+    expect(text()).toContain('Play with friends');
+    expect(text()).toContain('Join with a code');
+  });
+
+  test('a private game shows its code as separate characters', async () => {
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver({
+        type: 'partyState',
+        code: 'WXYZ',
+        hostId: 'me',
+        members: ['me'],
+        minSize: 2,
+        maxSize: 6,
+      });
+    });
+    const cells = host?.querySelectorAll('.code span') ?? [];
+    expect([...cells].map((cell) => cell.textContent)).toEqual(['W', 'X', 'Y', 'Z']);
+    expect(text()).toContain('Waiting for one more');
+  });
+
+  test('the table draws a hand, and every die actually has its pips', async () => {
+    // happy-dom does no layout, so a die's *size* cannot be checked here. Its pips can — and a
+    // missing pip is what a player actually sees, since a blank white square is not a die.
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver(snapshot({ turnId: 'me', myDice: [1, 2, 3, 4, 5] }));
+    });
+
+    expect(text()).toContain('Round 1');
+    expect(text()).toContain('ones are wild');
+
+    const hand = [...(host?.querySelectorAll('[data-face]') ?? [])];
+    const faces = hand.map((die) => die.getAttribute('data-face'));
+    // Five in the hand plus six in the bid picker.
+    expect(faces).toEqual(['1', '2', '3', '4', '5', '1', '2', '3', '4', '5', '6']);
+
+    for (const die of hand) {
+      const face = Number(die.getAttribute('data-face'));
+      const pips = die.querySelectorAll('.pip');
+      expect(pips.length, `a ${String(face)} drew no pips`).toBe(face);
+      // A pip that is `display: inline` has no size at all — width and height simply do not
+      // apply to a non-replaced inline element — so the die renders as a blank white square.
+      for (const pip of pips) {
+        expect(window.getComputedStyle(pip).display, 'a pip that cannot be sized').toBe('block');
+      }
+    }
+  });
+
+  test('a die sizes its own padding rather than inheriting a percentage', async () => {
+    // The other bug that reached a phone. A percentage padding resolves against the containing
+    // block's width, so a die in a wide row ballooned and its pip grid collapsed to nothing.
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver(snapshot({ turnId: 'me', myDice: [6] }));
+    });
+    const die = host?.querySelector('[data-face]');
+    const padding = (die as HTMLElement | null)?.style.padding ?? '';
+    expect(padding).toMatch(/px$/);
+    expect(padding).not.toContain('%');
+  });
+
+  test('it is the turn row, not the picker, that says whose turn it is', async () => {
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver(snapshot({ turnId: 'them', myDice: [1, 2, 3, 4, 5] }));
+    });
+    expect(text()).toContain('Waiting for');
+    expect(text()).not.toContain('Your turn');
+    // No picker when it is not your turn — the server sends no options either.
+    expect(host?.querySelector('.face-picker')).toBeNull();
+  });
+});

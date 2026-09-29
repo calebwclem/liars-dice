@@ -102,7 +102,7 @@ export function Match({
         </div>
         <span className="row" style={{ gap: 2 }}>
           <button
-            className="quiet"
+            className="icon-button"
             onClick={() => {
               const next = !muted;
               setMuted(next);
@@ -175,7 +175,7 @@ export function Match({
 
       {view.you !== null ? (
         <div className="stack">
-          <div className="muted small">YOUR HAND</div>
+          <div className="section-label">YOUR HAND</div>
           <Hand
             dice={view.you.dice}
             size={44}
@@ -228,7 +228,7 @@ export function Match({
             ))}
           </div>
 
-          <div className="row spread">
+          <div className="row spread stepper">
             <button
               onClick={() => setQuantity((q) => Math.max(min ?? 1, q - 1))}
               disabled={min === null || quantity <= min}
