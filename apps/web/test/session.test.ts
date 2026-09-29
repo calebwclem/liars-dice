@@ -551,3 +551,87 @@ describe('A connection that drops mid-match', () => {
     expect(session.getState().stage.kind).toBe('failed');
   });
 });
+
+/**
+ * "Again, same people."
+ *
+ * The party outlives the match it started, so the end of a game is a fork rather than an exit.
+ * What this client has to get right is knowing *whether* to offer it — a match found through
+ * the queue has no party behind it — and not wandering off the table when a `partyState` turns
+ * up for some other reason.
+ */
+describe('Playing again', () => {
+  const matchFound: ServerMessage = { type: 'matchFound', matchId: 'm1', seats: [] };
+
+  /** Through the party screen and into a match, the way friends get there. */
+  function fromParty(): { session: Session; socket: FakeSocket } {
+    const { session, socket } = connected();
+    socket.deliver(welcome);
+    socket.deliver(party('me', ['me', 'them']));
+    socket.deliver(matchFound);
+    return { session, socket };
+  }
+
+  test('a match started from a party remembers which one', () => {
+    const { session } = fromParty();
+    expect(session.getState().partyCode).toBe('WXYZ');
+    expect(session.getState().stage.kind).toBe('playing');
+  });
+
+  test('a match found through the queue has nothing to go back to', () => {
+    const { session, socket } = connected();
+    socket.deliver(welcome);
+    socket.deliver(matchFound);
+    expect(session.getState().partyCode).toBeNull();
+  });
+
+  test('the code survives a reconnect, because this object does', () => {
+    // The socket drops; the session does not. A re-announced match must not look like a new
+    // one and quietly lose the rematch button.
+    const { session, socket } = fromParty();
+    socket.deliver(matchFound);
+    expect(session.getState().partyCode).toBe('WXYZ');
+  });
+
+  test('asking to play again sends for the party', () => {
+    const { session, socket } = fromParty();
+    session.rematch();
+    expect(socket.messages().at(-1)?.type).toBe('rematch');
+  });
+
+  test('there is nothing to ask for after a public match', () => {
+    const { session, socket } = connected();
+    socket.deliver(welcome);
+    socket.deliver(matchFound);
+    const before = socket.messages().length;
+    session.rematch();
+    expect(socket.messages().length, 'it asked for a party it never had').toBe(before);
+  });
+
+  test('the answer to "play again" is what moves the screen', () => {
+    const { session, socket } = fromParty();
+    session.rematch();
+    socket.deliver(party('me', ['me', 'them']));
+    const { stage } = session.getState();
+    expect(stage.kind).toBe('party');
+    expect(stage.kind === 'party' && stage.party.code).toBe('WXYZ');
+  });
+
+  test('a party update nobody asked for does not take the match off the screen', () => {
+    // The server holds these back from a player who is at a table, so this is the gap between
+    // a match ending and a button being pressed — someone else leaving the party in those few
+    // seconds must not replace the final score with a lobby.
+    const { session, socket } = fromParty();
+    socket.deliver(party('me', ['me']));
+    expect(session.getState().stage.kind).toBe('playing');
+  });
+
+  test('going back to the lobby gives up the party too', () => {
+    const { session, socket } = fromParty();
+    session.leaveMatch();
+    expect(session.getState().partyCode).toBeNull();
+    expect(socket.messages().some((message) => message.type === 'leave')).toBe(true);
+    // And a stale refusal from the match just left does not follow them to the lobby.
+    expect(session.getState().lastError).toBeNull();
+  });
+});

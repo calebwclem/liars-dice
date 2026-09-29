@@ -82,6 +82,16 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('leaveParty') }),
   /** Host only. `fillWithBots` tops the table up to a normal match size (R-01 allows 2–6). */
   z.strictObject({ type: z.literal('startParty'), fillWithBots: z.boolean() }),
+  /**
+   * "Again, same people." A party now outlives the match it started, so this asks to be put
+   * back in front of it; the server answers with `partyState`, and the host starts the next
+   * match exactly as they started the first.
+   *
+   * Deliberately carries no `matchId`. It is not a property of the match that just ended — it
+   * is a request for the party the player is still a member of, and the server is the one that
+   * knows whether there is one.
+   */
+  z.strictObject({ type: z.literal('rematch') }),
   z.strictObject({ type: z.literal('bid'), matchId, bid: BidSchema }),
   z.strictObject({ type: z.literal('dudo'), matchId }),
   /**

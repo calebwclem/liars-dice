@@ -283,6 +283,30 @@ describe('Four clients, one server', () => {
     return four;
   };
 
+  /** The same four, but gathered behind a code the way friends actually play. */
+  const seatParty = async (): Promise<{ four: TestClient[]; code: string }> => {
+    const four: TestClient[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const client = await TestClient.connect(url);
+      clients.push(client);
+      four.push(client);
+      await client.hello();
+    }
+    const [host, ...guests] = four;
+    if (host === undefined) throw new Error('no host');
+    host.send({ type: 'createParty' });
+    const created = await host.waitFor((m) => m.type === 'partyState');
+    if (created.type !== 'partyState') throw new Error('not a partyState');
+    for (const guest of guests) {
+      guest.send({ type: 'joinParty', code: created.code });
+      await guest.waitFor((m) => m.type === 'partyState');
+    }
+    host.send({ type: 'startParty', fillWithBots: false });
+    await Promise.all(four.map((c) => c.waitFor((m) => m.type === 'matchFound')));
+    await Promise.all(four.map((c) => c.waitFor((m) => m.type === 'state')));
+    return { four, code: created.code };
+  };
+
   const isOver = (four: readonly TestClient[]): boolean =>
     four.some((c) => c.snapshot?.view.phase.kind === 'ended');
 
@@ -331,6 +355,64 @@ describe('Four clients, one server', () => {
     }
     throw new Error('match did not finish in time');
   };
+
+  test('four friends play a match, and then play another with the same people', async () => {
+    // Tier 3's flagship, end to end. A party used to be dissolved the instant it started, so
+    // when the match ended there was nothing to go back to and the only button was "back to the
+    // lobby". The party now outlives its match; this plays one out and asks for another.
+    //
+    // Everything below counts messages rather than waiting for a *type*: `waitFor` answers from
+    // what has already arrived, so "wait for a matchFound" is satisfied instantly by the one
+    // that started the first match. Two of these assertions passed vacuously before that was
+    // noticed.
+    const { four, code } = await seatParty();
+    const [host] = four;
+    if (host === undefined) throw new Error('no host');
+    const firstMatch = host.matchId;
+    const partyStates = (client: TestClient): number =>
+      client.received.filter((message) => message.type === 'partyState').length;
+    const seatedWith = four.map(partyStates);
+
+    await playToCompletion(four);
+    for (const client of four) expect(client.snapshot?.view.phase.kind).toBe('ended');
+
+    // The match ending moves nobody. A `partyState` here would take the final score off the
+    // screen of everyone still reading it.
+    four.forEach((client, index) => {
+      expect(partyStates(client), 'the match ending pushed a party screen').toBe(seatedWith[index]);
+    });
+
+    // "Play again."
+    for (const client of four) client.send({ type: 'rematch' });
+    await waitUntil('everyone to be back in the room', () =>
+      four.every((client, index) => partyStates(client) > (seatedWith[index] ?? 0)),
+    );
+
+    for (const client of four) {
+      const back = [...client.received].reverse().find((m) => m.type === 'partyState');
+      if (back?.type !== 'partyState') throw new Error('no party came back');
+      // Same room, same people, and the host is still the host.
+      expect(back.code).toBe(code);
+      expect([...back.members].sort()).toEqual(four.map((c) => c.playerId).sort());
+      expect(back.hostId).toBe(host.playerId);
+    }
+
+    // And it really is startable again: a second match, with a new id and a fresh deal.
+    host.send({ type: 'startParty', fillWithBots: false });
+    await waitUntil(
+      'the second match to be dealt',
+      () =>
+        four.every(
+          (client) =>
+            client.matchId !== firstMatch && client.snapshot?.view.phase.kind === 'bidding',
+        ),
+      10_000,
+    );
+    for (const client of four) {
+      expect(client.matchId).toBe(host.matchId);
+      expect(client.snapshot?.view.you?.dice).toHaveLength(5); // R-03, dealt afresh
+    }
+  });
 
   test('R-12: four clients play a full match through to a winner', async () => {
     const four = await seatFour();

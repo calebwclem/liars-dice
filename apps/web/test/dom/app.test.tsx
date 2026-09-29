@@ -144,8 +144,9 @@ function snapshot(options: {
   round?: number;
   events?: ProtocolEvent[];
   kind?: 'update' | 'sync';
+  winnerId?: string;
 }): ServerMessage {
-  const onTurn = options.turnId === 'me';
+  const onTurn = options.turnId === 'me' && options.winnerId === undefined;
   const index = options.round ?? 0;
   return {
     type: 'state',
@@ -163,7 +164,10 @@ function snapshot(options: {
           { id: 'me', seat: 0, diceCount: options.myDice.length, eliminated: false },
           { id: 'them', seat: 1, diceCount: 5, eliminated: false },
         ],
-        phase: { kind: 'bidding', turnId: options.turnId },
+        phase:
+          options.winnerId === undefined
+            ? { kind: 'bidding', turnId: options.turnId }
+            : { kind: 'ended', winnerId: options.winnerId },
         round: { index, starterId: 'me', bids: [] },
         lastReveal: null,
         totalDiceInPlay: options.myDice.length + 5,
@@ -511,6 +515,71 @@ describe('The app, mounted', () => {
     expect(text()).not.toContain('Cannot reach the table');
     expect(text()).toContain('Round 1');
     expect(text()).toContain('Your turn');
+  });
+
+  test('the end of a private game offers another one, and asks for it', async () => {
+    // Tier 3's flagship, from the button's side. The match is over; the first thing anyone
+    // wants after a game with friends is another one, so it is the primary button.
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver({
+        type: 'partyState',
+        code: 'WXYZ',
+        hostId: 'me',
+        members: ['me', 'them'],
+        minSize: 2,
+        maxSize: 6,
+      });
+      socket.deliver(snapshot({ turnId: 'me', myDice: [1, 2, 3], winnerId: 'me' }));
+    });
+
+    expect(text()).toContain('You win.');
+    const again = [...(host?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Play again',
+    );
+    expect(again, 'no way to play again').toBeDefined();
+    expect(again?.className, 'playing again is the thing they want; make it the loud button').toBe(
+      'primary',
+    );
+    expect(text()).toContain('Back to room WXYZ');
+
+    act(() => {
+      again?.click();
+    });
+    expect(socket.sentTypes(), 'the button asked for nothing').toContain('rematch');
+
+    // And the answer puts them back in the room, ready to start again.
+    act(() => {
+      socket.deliver({
+        type: 'partyState',
+        code: 'WXYZ',
+        hostId: 'me',
+        members: ['me', 'them'],
+        minSize: 2,
+        maxSize: 6,
+      });
+    });
+    expect(text()).toContain('ROOM CODE');
+    expect(text()).toContain('Start the match');
+  });
+
+  test('the end of a public match offers only the lobby', async () => {
+    // There is no "same people" to reassemble, and a button that explains itself by failing is
+    // worse than no button.
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver({ type: 'matchFound', matchId: 'm1', seats: [] });
+      socket.deliver(snapshot({ turnId: 'them', myDice: [], winnerId: 'them' }));
+    });
+    const labels = [...(host?.querySelectorAll('button') ?? [])].map((b) => b.textContent);
+    expect(labels).not.toContain('Play again');
+    expect(labels).toContain('Back to the lobby');
   });
 
   test('it is the turn row, not the picker, that says whose turn it is', async () => {

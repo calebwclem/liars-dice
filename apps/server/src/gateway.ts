@@ -83,7 +83,17 @@ export class Gateway {
       },
       onChanged: (party) => {
         // The party has no sockets of its own; delivering its state is the gateway's job.
-        for (const playerId of party.members) this.send(playerId, { type: 'partyState', ...party });
+        //
+        // Not to a member who is at a table, though. A party outlives the match it starts, so
+        // its membership can change while that match is being played — someone joins with the
+        // code, someone else gives up — and a client that receives a `partyState` shows the
+        // party. Sending one to a player mid-match would take the match off their screen. The
+        // gateway is the only thing here that knows who is in a room, so the filter lives here
+        // rather than being a rule each of three clients has to remember.
+        for (const playerId of party.members) {
+          if (this.playerRoom.has(playerId)) continue;
+          this.send(playerId, { type: 'partyState', ...party });
+        }
       },
     });
     this.wss.on('connection', (socket: WebSocket) => {
@@ -149,11 +159,14 @@ export class Gateway {
     if (this.sockets.get(playerId) === session.socket) {
       this.sockets.delete(playerId);
       this.matchmaker.remove(playerId);
-      // A party is a waiting room, not a seat: dropping out of one costs nothing but the
-      // code, and the remaining members are told. A *match* is different — R-18 holds the
-      // seat open, which is what `onDisconnected` below is for.
-      this.parties.leave(playerId);
-      this.roomOf(playerId)?.onDisconnected(playerId); // R-18
+      const room = this.roomOf(playerId);
+      // A party is a waiting room, not a seat: dropping out of one costs nothing but the code,
+      // and the remaining members are told. A *match* is different — R-18 holds the seat open,
+      // which is what `onDisconnected` is for, and a party that is playing holds the membership
+      // on the same terms: a player whose wifi drops in round three has not left the group. The
+      // sweep in `closeRoom` is what drops them if they never come back.
+      if (room === undefined) this.parties.leave(playerId);
+      room?.onDisconnected(playerId); // R-18
     }
     this.log.debug('socket.closed', { playerId });
   }
@@ -266,8 +279,27 @@ export class Gateway {
 
       case 'startParty': {
         const failure = this.parties.start(playerId, message.fillWithBots);
-        // On success the party dissolved and `openRoom` has already sent `matchFound`.
+        // On success `openRoom` has already sent `matchFound`. The party is still standing —
+        // it is marked as playing, and comes back when the match ends.
         if (failure !== null) this.reject(session, failure, null);
+        return;
+      }
+
+      case 'rematch': {
+        // "Again, same people." The party outlived the match, so this is a request to be put
+        // back in front of it rather than anything new being created.
+        if (this.playerRoom.has(playerId)) {
+          this.reject(session, 'ALREADY_IN_MATCH', null);
+          return;
+        }
+        const party = this.parties.partyOf(playerId);
+        if (party === undefined) {
+          // A public match has no party behind it, and a private one whose other members all
+          // went home has nothing left to go back to.
+          this.reject(session, 'NOT_IN_PARTY', null);
+          return;
+        }
+        this.send(playerId, { type: 'partyState', ...party });
         return;
       }
 
@@ -305,11 +337,18 @@ export class Gateway {
       }
 
       case 'leave': {
+        // Leaving the table is leaving the party that brought them to it. The alternative is a
+        // player who said they were done being pulled into the next match by someone else's
+        // host button, which is worse than making them type the code again.
+        this.parties.leave(playerId);
+
+        // Never an error. Leaving is idempotent by nature, and the room is gone the moment
+        // somebody wins while "back to the lobby" is pressed after that — so the honest answer
+        // to "leave a match that has ended" is "yes, you have". It used to be `UNKNOWN_MATCH`,
+        // which the browser client duly rendered as "That match has finished." on the lobby
+        // screen the player had just asked to be taken to.
         const room = this.rooms.get(message.matchId);
-        if (!room?.has(playerId)) {
-          this.reject(session, 'UNKNOWN_MATCH', null);
-          return;
-        }
+        if (!room?.has(playerId)) return;
         room.onLeft(playerId);
         this.playerRoom.delete(playerId);
         return;
@@ -418,6 +457,12 @@ export class Gateway {
     for (const playerId of room.playerIds) {
       if (this.playerRoom.get(playerId) === room.matchId) this.playerRoom.delete(playerId);
     }
+    // The party that started this match, if there was one, is still standing — that is what
+    // makes "again, same people" possible. Nobody is told: a player who has just watched
+    // someone win should be looking at that, not at a lobby that appeared underneath them.
+    // They come back by asking, with `rematch`. Ordered after `playerRoom` is cleared, so a
+    // player who does ask is no longer counted as being at a table.
+    this.parties.matchEnded(room.matchId, (playerId) => this.sockets.has(playerId));
     this.log.info('room.closed', { matchId: room.matchId, status: room.currentStatus });
   }
 

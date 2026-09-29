@@ -692,3 +692,50 @@ its view model diffs snapshots anyway; the browser has nothing to diff.
 happy-dom does no layout and cannot see anything move; what it can do is resolve the cascade, so
 the companion assertion is that `.rolled` matches a rule at all and that the keyframes it names
 exist. Both were verified by breaking them on purpose.
+
+---
+
+## 2026-09-29 — A party outlives the match it starts, and a rematch is one client message
+
+**Decision:** `Parties.start` no longer dissolves the party. It marks it with the `matchId` it
+just opened and keeps the code, the members and the host. When the room closes, the gateway
+calls `parties.matchEnded`, which clears the mark and sweeps out members who no longer have a
+socket. A player asks to come back with a new client message, `rematch`, and the server answers
+with the `partyState` it would have sent anyway.
+
+**Alternatives:** a rematch *offer* attached to the finished match — every human votes "again",
+and the server opens a new room when they all have (rejected: it needs a new server concept with
+its own expiry timers and its own partial-agreement rules, and it reassembles a group that no
+longer has a name; the party already is that group, and it already has a code a dropped friend
+can rejoin with). Pushing `partyState` to everyone the moment the match ends (rejected: it takes
+the final score off the screen of everyone still reading it — the end of a match is a fork, and
+the player should pick the branch).
+
+**Why no new server message, and why the floor stays at 2.** The schemas are strict, so an added
+field is a parse failure rather than something an older peer ignores: putting `partyCode` on
+`matchFound` would have broken every v3 browser client and forced `MIN_PROTOCOL_VERSION` up to
+4. The direction of `rematch` is what makes it free — the *server* gained a message it can
+receive, and a client that never sends it is unaffected. So the browser works out whether to
+offer the button from what it already saw (it was on the party screen when `matchFound`
+arrived), which survives a reconnect because the socket drops and the `Session` does not. It
+does not survive a page reload mid-match; that is the whole cost, and it buys an unchanged
+compatibility floor and an untouched iOS client.
+
+**The filter that keeps three clients honest.** A party that outlives its match can *change*
+while that match is played — someone joins with the code, someone gives up. Every client shows
+the party when it receives a `partyState`, so one arriving mid-match would take the match off
+the screen. Rather than making that a rule each of three clients has to remember, the gateway
+declines to send one to a player who is in a room; it is the only thing here that knows. The
+browser also guards its own side, because the few seconds between a match ending and a button
+being pressed are outside the server's filter.
+
+**What iOS does now:** nothing different. It never sends `rematch`, its "back to the lobby"
+sends `leave` (which now also leaves the party, so a player who said they were done is not
+pulled into the next match), and it cannot receive a `partyState` mid-match. Built and tested on
+iPhone 16e against the regenerated models. The one new behaviour it inherits is that an iOS
+player who sits on the end screen stays in the party, so a host starting a rematch takes them
+with them — reasonable, but iOS has no button of its own yet. That is the follow-up.
+
+**Not covered by tests:** a real browser. The flow is covered end to end over real sockets in
+`integration.test.ts` — four friends play a match to a winner and start another — and from the
+button's side in the mounted-DOM project, but nobody has clicked it.

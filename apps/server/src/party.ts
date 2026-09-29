@@ -52,6 +52,14 @@ interface Party {
   readonly code: string;
   hostId: PlayerId;
   readonly members: PlayerId[];
+  /**
+   * The match this party is currently playing, or null when it is waiting.
+   *
+   * A party used to be dissolved the instant it started, which made "again, same people"
+   * impossible: by the time the match ended there was nothing to go back to. It now outlives
+   * the match, and this is what says which state it is in.
+   */
+  matchId: string | null;
 }
 
 export class Parties {
@@ -88,7 +96,7 @@ export class Parties {
     const code = this.newUniqueCode();
     if (code === null) return 'INTERNAL';
 
-    const party: Party = { code, hostId: playerId, members: [playerId] };
+    const party: Party = { code, hostId: playerId, members: [playerId], matchId: null };
     this.byCode.set(code, party);
     this.byPlayer.set(playerId, code);
     this.options.log.info('party.created', { code, hostId: playerId });
@@ -109,12 +117,27 @@ export class Parties {
 
   /** True if they were in one. Dissolves the party if that was the last member. */
   leave(playerId: PlayerId): boolean {
+    const party = this.remove(playerId);
+    if (party === null) return false;
+    if (party !== undefined) this.changed(party);
+    return true;
+  }
+
+  /**
+   * Take a player out of their party without telling anyone.
+   *
+   * Returns null if they were not in one, undefined if that dissolved it, and the party itself
+   * otherwise — so the caller decides whether this is news. `leave` always says so; the sweep
+   * at the end of a match deliberately does not, because a broadcast at that moment would pull
+   * everyone still reading the final score onto a lobby screen.
+   */
+  private remove(playerId: PlayerId): Party | null | undefined {
     const code = this.byPlayer.get(playerId);
-    if (code === undefined) return false;
+    if (code === undefined) return null;
     this.byPlayer.delete(playerId);
 
     const party = this.byCode.get(code);
-    if (party === undefined) return true;
+    if (party === undefined) return undefined;
 
     const at = party.members.indexOf(playerId);
     if (at !== -1) party.members.splice(at, 1);
@@ -123,14 +146,13 @@ export class Parties {
     if (next === undefined) {
       this.byCode.delete(code);
       this.options.log.info('party.dissolved', { code });
-      return true;
+      return undefined;
     }
     // The host is whoever has been here longest. Dissolving instead would punish everybody
     // for one person's connection dropping, and a disconnect is how most hosts will leave.
     if (party.hostId === playerId) party.hostId = next;
     this.options.log.debug('party.left', { code, playerId, members: party.members.length });
-    this.changed(party);
-    return true;
+    return party;
   }
 
   /** Host only. Null on success — the match is opened through `onStart`. */
@@ -140,6 +162,7 @@ export class Parties {
     const party = this.byCode.get(code);
     if (party === undefined) return 'NOT_IN_PARTY';
     if (party.hostId !== playerId) return 'NOT_PARTY_HOST';
+    if (party.matchId !== null) return 'ALREADY_IN_MATCH';
     if (party.members.length < MIN_PARTY_SIZE) return 'PARTY_TOO_SMALL';
 
     const seats: SeatSpec[] = party.members.map((id) => ({ playerId: id, kind: 'human' }));
@@ -151,12 +174,14 @@ export class Parties {
       }
     }
 
-    // Dissolve before opening the room: `onStart` reaches the gateway synchronously, and it
-    // must not find these players still listed as waiting behind a code.
-    this.byCode.delete(code);
-    for (const id of party.members) this.byPlayer.delete(id);
-
+    // The party is *not* dissolved here, which is the whole of the rematch feature. It stays,
+    // holding its code and its members, and is marked as playing; the gateway is what stops a
+    // player being treated as "waiting behind a code" while they are at a table, because it is
+    // the one that knows who is in a room. Marked before `onStart`, which reaches the gateway
+    // synchronously and may come straight back in here.
     const matchId = this.newMatchId();
+    party.matchId = matchId;
+
     this.options.log.info('party.started', {
       code,
       matchId,
@@ -165,6 +190,31 @@ export class Parties {
     });
     this.options.onStart(matchId, seats);
     return null;
+  }
+
+  /**
+   * The match this party was playing is over. The party is not.
+   *
+   * Nothing is broadcast: a player who has just watched someone win should be looking at that,
+   * not at a lobby. They come back by asking — see the gateway's `rematch` — and `sweep` says
+   * who is no longer around to ask.
+   */
+  matchEnded(matchId: string, stillHere: (playerId: PlayerId) => boolean): void {
+    const party = [...this.byCode.values()].find((candidate) => candidate.matchId === matchId);
+    if (party === undefined) return;
+    party.matchId = null;
+
+    // Anyone who dropped during the match had their party membership held for them, the way
+    // R-18 holds their seat. With the match over there is nothing left to hold, so the ones who
+    // never came back are dropped now rather than lingering as members who cannot answer.
+    for (const id of [...party.members]) {
+      if (!stillHere(id)) this.remove(id);
+    }
+    this.options.log.info('party.matchEnded', {
+      code: party.code,
+      matchId,
+      remaining: party.members.length,
+    });
   }
 
   dispose(): void {

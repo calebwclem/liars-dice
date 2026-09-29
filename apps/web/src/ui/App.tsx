@@ -91,6 +91,8 @@ export function App({ session: provided }: { session?: Session } = {}) {
                 bid={(quantity, face) => session.bid(quantity, face)}
                 challenge={() => session.challenge()}
                 leave={() => session.leaveMatch()}
+                partyCode={state.partyCode}
+                rematch={() => session.rematch()}
               />
             );
 

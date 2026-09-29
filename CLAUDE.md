@@ -166,10 +166,12 @@ table 4 × ⚅` — and reads clearly on a real screen. Do not re-add it without
 
 **Tier 3 — rough edges**
 
-- **Rematch.** The end of a match offers only "Back to the lobby". After game one with a friend
-  the obvious want is "again, same people" — and a private party is dissolved the moment it
-  starts, so there is nothing to go back to. Probably the highest-value *feature* on this list;
-  it needs the party to outlive the match it started, which is a server change, not a UI one.
+- ~~**Rematch.**~~ Done on the web and the server. A party now outlives the match it starts, and
+  `rematch` (protocol 4) asks to be put back in front of it; the host starts the next match from
+  the same room code. See `docs/DECISIONS.md`. **iOS has none of this yet** — it is unaffected
+  (it never sends `rematch`, and the gateway holds party updates back from anyone in a room), but
+  an iOS player who sits on the end screen is still in the party and will be pulled into a
+  rematch someone else starts. Giving iOS the button is the follow-up.
 - ~~**Reconnect, tested in anger.**~~ Mostly done. Nine tests now drop a live match on a fake
   clock and drive the recovery, which found two real bugs: the backoff reset on `open` rather
   than on a working session, so a server that accepted and dropped (a `node --watch` restart, a
@@ -183,9 +185,11 @@ table 4 × ⚅` — and reads clearly on a real screen. Do not re-add it without
   runs a supervisor and a child and both parsed `--env-file-if-exists`. `env.ts` now reads the
   file itself, and `shutdown` is guarded so repeated signals tear down once.
 
-Before starting any of these, play a match first. This list is a guess at what is wrong; a
-session spent watching someone actually play beats it every time — Tier 1's turn timer was the
-only item on the original list that turned out to be a functional gap rather than taste.
+All four are done or part-done; what is left of each is written above. Before starting anything
+new here, play a match first. This list was a guess at what is wrong, and a session spent
+watching someone actually play beats it every time — Tier 1's turn timer was the only item on
+the original list that turned out to be a functional gap rather than taste, and Tier 3's
+shutdown item turned out not to be the bug it described.
 
 ## Testing bar before a phase is "done"
 

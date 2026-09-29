@@ -9,7 +9,7 @@
  * client tolerates additions in practice; the version gate is what makes that a decision
  * rather than an accident.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /**
  * The oldest client version this server still accepts.
@@ -25,5 +25,13 @@ export const PROTOCOL_VERSION = 3;
  * it would in principle still work. The minimum stays at 2 rather than rising to 3 for
  * exactly that reason: raise the floor when old clients would *break*, not merely when they
  * would miss out. A v2 client simply has no button for private games.
+ *
+ * Version 4 adds `rematch`, one client message, and nothing else. The floor stays at 2 on the
+ * same reasoning, and the *direction* is what makes it safe: the server gained a message it can
+ * receive, so an older client that never sends it is unaffected. A new field on a server
+ * message would have been a different matter — these schemas are strict, so an extra key is a
+ * parse failure rather than something quietly ignored, and an older browser client would have
+ * dropped the whole message on the floor. That is why the rematch button is worked out from
+ * what the client already saw rather than from anything new on the wire.
  */
 export const MIN_PROTOCOL_VERSION = 2;

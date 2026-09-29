@@ -25,6 +25,8 @@ export function Match({
   bid,
   challenge,
   leave,
+  partyCode,
+  rematch,
 }: {
   snapshot: MatchSnapshot;
   turnDeadline: number | null;
@@ -34,6 +36,9 @@ export function Match({
   bid: (quantity: number, face: number) => void;
   challenge: () => void;
   leave: () => void;
+  /** The private game this match came from, or null for a public one. */
+  partyCode: string | null;
+  rematch: () => void;
 }) {
   const { view, bidOptions } = snapshot;
   const { phase, round } = view;
@@ -167,7 +172,21 @@ export function Match({
               ? 'You win.'
               : `${shortName(phase.winnerId, me)} wins.`}
           </h2>
-          <button className="primary" onClick={leave}>
+          {/*
+            The first thing anyone wants after a game with friends is another one, so it is the
+            primary button. It is offered only when there is a party to go back to — a match
+            found through the queue has no "same people" to reassemble, and a button that
+            explains itself by failing is worse than no button.
+          */}
+          {partyCode === null ? null : (
+            <>
+              <button className="primary" onClick={rematch}>
+                Play again
+              </button>
+              <div className="muted small">Back to room {partyCode}, with the same players.</div>
+            </>
+          )}
+          <button className={partyCode === null ? 'primary' : 'quiet'} onClick={leave}>
             Back to the lobby
           </button>
         </div>
@@ -467,6 +486,8 @@ export function readable(code: ErrorCode): string {
     case 'UNKNOWN_MATCH':
     case 'NOT_IN_MATCH':
       return 'That match has finished.';
+    case 'NOT_IN_PARTY':
+      return 'That game has broken up — everyone else has gone.';
     default:
       return `The server refused that: ${code}`;
   }

@@ -52,6 +52,19 @@ export interface SessionState {
   readonly log: readonly ProtocolEvent[];
   readonly lastError: ErrorCode | null;
   readonly reconnecting: boolean;
+  /**
+   * The code of the private game this match came from, or null for a public one.
+   *
+   * What it is for is knowing whether to offer "play again": a party outlives the match it
+   * starts, a matchmaker queue has nothing to go back to. Worked out from what this client
+   * already saw rather than from anything on the wire — see version.ts for why a new field on
+   * a server message would have been the more expensive answer.
+   *
+   * It survives a reconnect, because the socket drops and this object does not. It does not
+   * survive a page reload mid-match, so a player who refreshes loses the button; they can
+   * still rejoin by code, and paying a protocol change for that case is not worth it.
+   */
+  readonly partyCode: string | null;
 }
 
 const TOKEN_KEY = 'liarsdice.guestToken';
@@ -117,6 +130,7 @@ export class Session {
     log: [],
     lastError: null,
     reconnecting: false,
+    partyCode: null,
   };
 
   private readonly listeners = new Set<() => void>();
@@ -126,6 +140,8 @@ export class Session {
   private resumable: { matchId: string; afterSeq: number } | null = null;
   private attempt = 0;
   private closing = false;
+  /** Set by `rematch`, so the `partyState` it asks for is the one that changes the screen. */
+  private wantsParty = false;
   /** The pending backoff timer, so leaving can cancel it. */
   private retry: ReturnType<typeof setTimeout> | null = null;
 
@@ -290,13 +306,30 @@ export class Session {
     const { matchId } = this.state;
     if (matchId !== null) this.send({ type: 'leave', matchId });
     this.resumable = null;
+    this.wantsParty = false;
     this.set({
       stage: { kind: 'lobby' },
       matchId: null,
       snapshot: null,
       turnDeadline: null,
       log: [],
+      lastError: null,
+      partyCode: null,
     });
+  }
+
+  /**
+   * "Again, same people."
+   *
+   * The party outlived the match, so this asks the server to put it back on screen; the answer
+   * is a `partyState`, and the host starts the next match from there. The flag is what tells
+   * the `partyState` handler that *this* one is a navigation — see the note there.
+   */
+  rematch(): void {
+    if (this.state.partyCode === null) return;
+    this.wantsParty = true;
+    this.set({ lastError: null });
+    this.send({ type: 'rematch' });
   }
 
   // ─── inbound ────────────────────────────────────────────────────────────────
@@ -339,11 +372,18 @@ export class Session {
         return;
 
       case 'partyState':
-        this.set({ stage: { kind: 'party', party: message } });
+        // A party update arriving while a match is on screen is news, not a navigation. The
+        // server already declines to send one to a player who is at a table, so in practice
+        // this is the gap between a match ending and the player pressing a button — someone
+        // else leaving the party in those few seconds should not take the final score off
+        // their screen. Only the `partyState` that `rematch` asked for moves them.
+        if (this.state.stage.kind === 'playing' && !this.wantsParty) return;
+        this.wantsParty = false;
+        this.set({ stage: { kind: 'party', party: message }, partyCode: message.code });
         return;
 
       case 'partyLeft':
-        this.set({ stage: { kind: 'lobby' } });
+        this.set({ stage: { kind: 'lobby' }, partyCode: null });
         return;
 
       case 'matchFound':
@@ -352,6 +392,14 @@ export class Session {
         this.set({
           stage: { kind: 'playing' },
           matchId: message.matchId,
+          // Which party this came from, if any — the answer to "can we play again". A match
+          // reached through the queue clears it; one started from the party screen keeps the
+          // code that screen was showing.
+          ...(this.state.stage.kind === 'party'
+            ? { partyCode: this.state.stage.party.code }
+            : this.state.matchId === message.matchId
+              ? {}
+              : { partyCode: null }),
           ...(this.state.matchId === message.matchId
             ? {}
             : { snapshot: null, turnDeadline: null, log: [] }),

@@ -207,12 +207,51 @@ describe('Starting the match', () => {
     expect(seats.every((seat) => seat.kind === 'human')).toBe(true);
   });
 
-  test('starting dissolves the party — the code stops working', () => {
+  test('starting does NOT dissolve the party — that is what a rematch goes back to', () => {
+    // This used to assert the opposite, and the opposite is what made "again, same people"
+    // impossible: by the time anyone wanted a second game there was nothing left to want it
+    // with. The party survives its own match, code and all.
     const { registry } = parties();
     registry.create('a');
     registry.join('b', 'AAAA');
     registry.start('a', false);
+    expect(registry.partyOf('a')?.members).toEqual(['a', 'b']);
+    // The code keeps working too, so a friend who dropped can come back to the same room.
+    expect(registry.join('c', 'AAAA')).not.toBe('UNKNOWN_PARTY');
+  });
+
+  test('a party that is already playing cannot start a second match', () => {
+    const { registry } = parties();
+    registry.create('a');
+    registry.join('b', 'AAAA');
+    expect(registry.start('a', false)).toBeNull();
+    expect(registry.start('a', false)).toBe('ALREADY_IN_MATCH');
+  });
+
+  test('the match ending hands the party back, minus whoever went home', () => {
+    const { registry, started } = parties();
+    registry.create('a');
+    registry.join('b', 'AAAA');
+    registry.join('c', 'AAAA');
+    registry.start('a', false);
+    const matchId = started.at(-1)?.matchId ?? '';
+
+    // 'b' never reconnected. Their membership was held for the length of the match, the way
+    // R-18 holds a seat, and there is nothing left to hold it for.
+    registry.matchEnded(matchId, (playerId) => playerId !== 'b');
+    expect(registry.partyOf('a')?.members).toEqual(['a', 'c']);
+    // And it is waiting again, so the host can start the next one.
+    expect(registry.start('a', false)).toBeNull();
+  });
+
+  test('a match ending with nobody left dissolves the party', () => {
+    const { registry, started } = parties();
+    registry.create('a');
+    registry.join('b', 'AAAA');
+    registry.start('a', false);
+    const matchId = started.at(-1)?.matchId ?? '';
+    registry.matchEnded(matchId, () => false);
     expect(registry.partyOf('a')).toBeUndefined();
-    expect(registry.join('c', 'AAAA')).toBe('UNKNOWN_PARTY');
+    expect(registry.size).toBe(0);
   });
 });

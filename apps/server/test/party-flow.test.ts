@@ -136,7 +136,88 @@ describe('Private games end to end', () => {
     expect(hostMatch?.seats.map((seat) => seat.playerId).sort()).toEqual(
       [host.playerId, guest.playerId].sort(),
     );
-    expect(gateway.partyCount).toBe(0);
+    // The party is still standing behind the match, which is what a rematch goes back to. It
+    // used to be dissolved here, and that is precisely why there was nothing to play again.
+    expect(gateway.partyCount).toBe(1);
+  });
+
+  test('nobody is shown the party screen while they are at a table', async () => {
+    // A party outlives the match it starts, so its membership can change while that match is
+    // being played — a friend arriving with the code, someone giving up. Every client shows the
+    // party when it receives a `partyState`, so sending one to a player mid-match would take
+    // the match off their screen. The gateway is the only thing that knows who is in a room,
+    // so it is the gateway that holds those back.
+    const host = await client();
+    host.send({ type: 'createParty' });
+    await settle();
+    const code = host.last('partyState')?.code ?? '';
+
+    const guest = await client();
+    guest.send({ type: 'joinParty', code });
+    await settle();
+    host.send({ type: 'startParty', fillWithBots: false });
+    await settle(400);
+    expect(host.last('matchFound')).toBeDefined();
+
+    const count = (who: typeof host): number =>
+      who.received.filter((message) => message.type === 'partyState').length;
+    const before = count(host);
+
+    const latecomer = await client();
+    latecomer.send({ type: 'joinParty', code });
+    await settle();
+
+    // The latecomer is in the room and can see it; the two who are playing were not told.
+    expect(latecomer.last('partyState')?.members).toContain(latecomer.playerId);
+    expect(count(host), 'a player mid-match was shown the party screen').toBe(before);
+    expect(gateway.partyCount).toBe(1);
+  });
+
+  test('a rematch is refused while the match is still being played', async () => {
+    const host = await client();
+    host.send({ type: 'createParty' });
+    await settle();
+    const code = host.last('partyState')?.code ?? '';
+    const guest = await client();
+    guest.send({ type: 'joinParty', code });
+    await settle();
+    host.send({ type: 'startParty', fillWithBots: false });
+    await settle(400);
+
+    host.send({ type: 'rematch' });
+    await settle();
+    expect(host.last('error')?.code).toBe('ALREADY_IN_MATCH');
+  });
+
+  test('a rematch is refused when there is no party to go back to', async () => {
+    // A match found through the public queue has no "same people" to reassemble.
+    const alone = await client();
+    alone.send({ type: 'rematch' });
+    await settle();
+    expect(alone.last('error')?.code).toBe('NOT_IN_PARTY');
+  });
+
+  test('leaving the table leaves the party it came from', async () => {
+    // Otherwise a player who said they were done gets pulled into the next match by somebody
+    // else's host button.
+    const host = await client();
+    host.send({ type: 'createParty' });
+    await settle();
+    const code = host.last('partyState')?.code ?? '';
+    const guest = await client();
+    guest.send({ type: 'joinParty', code });
+    await settle();
+    host.send({ type: 'startParty', fillWithBots: true });
+    await settle(400);
+    const matchId = guest.last('matchFound')?.matchId ?? '';
+
+    guest.send({ type: 'leave', matchId });
+    await settle();
+    guest.send({ type: 'rematch' });
+    await settle();
+    expect(guest.last('error')?.code).toBe('NOT_IN_PARTY');
+    // And leaving is not itself an error, however finished the match is.
+    expect(guest.received.filter((message) => message.type === 'error').length).toBe(1);
   });
 
   test('filling with bots seats a full table for two friends', async () => {
