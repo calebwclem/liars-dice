@@ -158,16 +158,10 @@ without asking. A previous session did all three during a live match.
 ## Web client — the backlog
 
 Ordered by how much each changes the experience, not by effort. Tier 1 (turn timer, paced
-reveal, turn attention, phone layout) is done and on `main`.
+reveal, turn attention, phone layout) and Tier 2 (the hand tumbles in on a new round; the event
+feed is grouped by round) are done and on `main`.
 
-**Tier 2 — makes it feel like a game**
-
-- **Animate the dice roll.** New round, hand tumbles in. iOS has it (`RolledHand`, keyed on a
-  `rollToken`); the web hand just redraws, so a new round does not read as having started.
-- **Group the event feed by round.** It is one flat reversed list. A "Round 3" separator makes
-  it scannable rather than a wall of sentences.
-
-*(Cut from this tier: "make the standing bid more prominent". It has its own panel now — `on the
+*(Cut from Tier 2: "make the standing bid more prominent". It has its own panel now — `on the
 table 4 × ⚅` — and reads clearly on a real screen. Do not re-add it without new evidence.)*
 
 **Tier 3 — rough edges**

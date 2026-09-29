@@ -171,7 +171,7 @@ button.quiet {
   background: var(--die-pip);
 }
 
-/* ─── the roll ──────────────────────────────────────────── */
+/* ─── the roll ─────────────────────────────────────────────────────────── */
 
 /* A new round is a new roll: each die drops in with a twist and settles, a beat after the one
    before it. How far it falls and which way it turns come from `--roll-lift` and `--roll-spin`,
@@ -267,6 +267,29 @@ input.code-field {
   gap: 3px;
   max-height: 168px;
   overflow-y: auto;
+}
+
+/* A round separator: the number, then a hairline out to the edge. Small and brass rather than
+   another sentence in the same grey — the point is to be skimmed past, not read. */
+.feed-round {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Still the visual top: `column-reverse` flips the order of the rows, not their margins. */
+  margin-top: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brass);
+  opacity: 0.8;
+}
+
+.feed-round::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(200, 164, 87, 0.3);
 }
 
 .banner {

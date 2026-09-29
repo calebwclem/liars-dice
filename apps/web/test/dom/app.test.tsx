@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { StrictMode, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { Face, ServerMessage } from '@liars-dice/protocol';
+import type { Face, ProtocolEvent, ServerMessage } from '@liars-dice/protocol';
 import { PROTOCOL_VERSION } from '@liars-dice/protocol';
 import { App } from '../../src/ui/App.tsx';
 import { Session, type SocketLike } from '../../src/session.ts';
@@ -132,7 +132,12 @@ const welcome: ServerMessage = {
   token: 'tok',
 };
 
-function snapshot(options: { turnId: string; myDice: Face[]; round?: number }): ServerMessage {
+function snapshot(options: {
+  turnId: string;
+  myDice: Face[];
+  round?: number;
+  events?: ProtocolEvent[];
+}): ServerMessage {
   const onTurn = options.turnId === 'me';
   const index = options.round ?? 0;
   return {
@@ -140,7 +145,7 @@ function snapshot(options: { turnId: string; myDice: Face[]; round?: number }): 
     kind: 'update',
     matchId: 'm1',
     seq: 1,
-    events: [],
+    events: options.events ?? [],
     snapshot: {
       view: {
         matchId: 'm1',
@@ -419,6 +424,42 @@ describe('The app, mounted', () => {
     ]);
     // How far it falls scales with the die, so the same animation reads right at any size.
     expect(dice[0]?.style.getPropertyValue('--roll-lift')).toBe('-70px');
+  });
+
+  test('the feed is broken into rounds rather than one flat list', async () => {
+    const { sockets } = await mount();
+    const socket = live(sockets);
+    act(() => {
+      socket.open();
+      socket.deliver(welcome);
+      socket.deliver(
+        snapshot({
+          turnId: 'me',
+          myDice: [1, 2, 3, 4, 5],
+          events: [
+            { type: 'roundStarted', index: 0, starterId: 'me', diceCounts: { me: 5 } },
+            { type: 'bidMade', playerId: 'me', bid: { quantity: 2, face: 6 } },
+            { type: 'roundStarted', index: 1, starterId: 'them', diceCounts: { me: 4 } },
+          ],
+        }),
+      );
+    });
+    const separators = [...(host?.querySelectorAll('.feed-round') ?? [])].map(
+      (row) => row.textContent,
+    );
+    expect(separators).toEqual(['Round 2', 'Round 1']);
+
+    // Newest first in the DOM; `.feed` is column-reverse, so that is newest at the bottom.
+    const feed = [...(host?.querySelectorAll('.feed > *') ?? [])].map((row) => row.textContent);
+    expect(feed).toEqual([
+      'Player them opens',
+      'Round 2',
+      'You bid 2 sixes',
+      'You open',
+      'Round 1',
+    ]);
+    // The separator says which round it is, so the line beneath it must not say it again.
+    expect(feed).not.toContain('Round 1: You open');
   });
 
   test('it is the turn row, not the picker, that says whose turn it is', async () => {

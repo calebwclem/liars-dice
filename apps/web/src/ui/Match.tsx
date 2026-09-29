@@ -280,10 +280,24 @@ export function Match({
 
       {lastError !== null ? <div className="error center">{readable(lastError)}</div> : null}
 
+      {/*
+        Newest last in the DOM order this produces, and `.feed` is `column-reverse`, so the
+        newest line sits at the bottom and the container stays scrolled to it. Mapping before
+        reversing is what keeps the keys stable: the log only ever grows at the end, so a row's
+        chronological index never changes, while its position in the reversed list does.
+      */}
       <div className="feed">
-        {[...log].reverse().map((event, index) => (
-          <div key={index}>{summarise(event, me)}</div>
-        ))}
+        {feedRows(log, me)
+          .map((row, index) =>
+            row.kind === 'round' ? (
+              <div key={index} className="feed-round">
+                {row.label}
+              </div>
+            ) : (
+              <div key={index}>{row.text}</div>
+            ),
+          )
+          .reverse()}
       </div>
     </>
   );
@@ -344,6 +358,45 @@ export function Reveal({
   );
 }
 
+/** One row of the feed: a round separator, or a sentence about something that happened. */
+export type FeedRow = { kind: 'round'; label: string } | { kind: 'line'; text: string };
+
+/**
+ * The feed, broken into rounds.
+ *
+ * Flat, it is a wall of sentences: by round four there are three “loses a die” lines with
+ * nothing to say which round each belonged to, and reading back to work out how the table got
+ * to where it is means counting reveals. A separator per round makes it scannable.
+ *
+ * Chronological order — oldest first. The caller reverses it for the DOM.
+ */
+export function feedRows(log: readonly ProtocolEvent[], me: string | null): FeedRow[] {
+  const rows: FeedRow[] = [];
+  for (const event of log) {
+    if (event.type === 'roundStarted') {
+      rows.push({ kind: 'round', label: `Round ${String(event.index + 1)}` });
+      // The separator carries the number now, so the line below it does not say it twice.
+      rows.push({ kind: 'line', text: opensRound(event, me) });
+      continue;
+    }
+    rows.push({ kind: 'line', text: summarise(event, me) });
+  }
+  return rows;
+}
+
+/**
+ * “You open” / “Player dana opens” — who starts a round, without numbering it.
+ *
+ * `summarise` still numbers it, because a line pulled out of the feed has to stand on its own;
+ * under a separator that already says “Round 3”, it would read twice.
+ */
+function opensRound(
+  event: Extract<ProtocolEvent, { type: 'roundStarted' }>,
+  me: string | null,
+): string {
+  return subject(event.starterId, me, 'opens', 'open');
+}
+
 export function summarise(event: ProtocolEvent, me: string | null): string {
   const name = (id: string) => shortName(id, me);
   const says = (id: string, third: string, second: string) => subject(id, me, third, second);
@@ -351,7 +404,7 @@ export function summarise(event: ProtocolEvent, me: string | null): string {
     case 'matchStarted':
       return `Match started — ${String(event.playerIds.length)} players`;
     case 'roundStarted':
-      return `Round ${String(event.index + 1)}: ${says(event.starterId, 'opens', 'open')}`;
+      return `Round ${String(event.index + 1)}: ${opensRound(event, me)}`;
     case 'bidMade':
       return `${says(event.playerId, 'bids', 'bid')} ${spoken(event.bid.quantity, event.bid.face)}`;
     case 'dudoCalled':
