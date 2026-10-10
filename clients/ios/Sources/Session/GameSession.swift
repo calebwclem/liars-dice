@@ -35,6 +35,17 @@ final class GameSession {
     /// The most recent rejection, for the view to show. Cleared when the player acts again.
     private(set) var lastError: ErrorCode?
     private(set) var reconnecting = false
+    /// The code of the private game this match came from, or nil for a public one.
+    ///
+    /// What it is for is knowing whether to offer "play again": a party outlives the match it
+    /// starts, a matchmaker queue has nothing to go back to. Worked out from what this client
+    /// already saw rather than from anything on the wire — `matchFound` carries no party code,
+    /// deliberately, because adding a field to a server message would have broken older clients
+    /// (see `packages/protocol/src/version.ts`).
+    ///
+    /// It survives a reconnect, because the socket drops and this object does not. It does not
+    /// survive the app being relaunched mid-match, so a player who does that loses the button.
+    private(set) var partyCode: String?
 
     private let endpoint: URL
     private let tokens: any TokenStore
@@ -44,6 +55,8 @@ final class GameSession {
     private var pump: Task<Void, Never>?
     /// Set while a match is live, so a reconnect knows what to resume.
     private var resumable: (matchId: String, afterSeq: Int)?
+    /// Set by `rematch`, so the `partyState` it asks for is the one that changes the screen.
+    private var wantsParty = false
 
     init(
         endpoint: URL,
@@ -94,6 +107,8 @@ final class GameSession {
         socket = nil
         resumable = nil
         match = nil
+        partyCode = nil
+        wantsParty = false
         stage = .idle
         Task { await closing?.close() }
     }
@@ -145,10 +160,29 @@ final class GameSession {
 
     func leaveMatch() {
         guard let matchId = match?.matchId else { return }
+        // The server treats leaving the table as leaving the party that brought them to it, so
+        // there is nothing to play again afterwards. Forgetting the code here keeps this object
+        // agreeing with it.
         send(.leave(.init(matchId: matchId)))
         match = nil
         resumable = nil
+        partyCode = nil
+        wantsParty = false
+        lastError = nil
         stage = .lobby
+    }
+
+    /// "Again, same people."
+    ///
+    /// The party outlived the match (see `docs/DECISIONS.md`), so this asks the server to put it
+    /// back on screen; the answer is a `partyState`, and the host starts the next match from
+    /// there. `wantsParty` is what tells the inbound handler that *this* `partyState` is a
+    /// navigation rather than news — see the note on `.partyState` below.
+    func rematch() {
+        guard partyCode != nil else { return }
+        lastError = nil
+        wantsParty = true
+        send(.rematch)
     }
 
     private func send(_ message: ClientMessage) {
@@ -193,15 +227,34 @@ final class GameSession {
             stage = .lobby
 
         case .partyState(let party):
+            // A party update arriving while a match is on screen is news, not a navigation. A
+            // party outlives the match it starts, so its membership can change mid-match — a
+            // friend joining with the code, someone giving up — and moving screens on that would
+            // take the match away from a player in the middle of it. The gateway already declines
+            // to send these to anyone in a room, so in practice this covers the seconds between a
+            // match ending and a button being pressed. Only the one `rematch` asked for moves.
+            if stage == .playing, !wantsParty { break }
+            wantsParty = false
+            partyCode = party.code
             stage = .party(party)
 
         case .partyLeft:
+            partyCode = nil
             stage = .lobby
 
         case .matchFound(let found):
             // On a reconnect the server re-announces the match; keep the existing view model so
             // the event log the player has already seen is not thrown away.
-            if match?.matchId != found.matchId {
+            let sameMatch = match?.matchId == found.matchId
+            // Which private game this came from, if any. Starting from the party screen keeps
+            // that code; arriving any other way for a *new* match clears it, because a queue
+            // match has no "same people" to reassemble.
+            if case .party(let party) = stage {
+                partyCode = party.code
+            } else if !sameMatch {
+                partyCode = nil
+            }
+            if !sameMatch {
                 match = MatchViewModel(
                     matchId: found.matchId,
                     myPlayerId: playerId ?? "",

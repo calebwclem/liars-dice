@@ -7,6 +7,10 @@ import SwiftUI
 /// A disabled control is a hint, and the server re-validates regardless.
 struct MatchView: View {
     let match: MatchViewModel
+    /// The private game this match came from, or nil for a public one. Only the winner panel
+    /// cares; it decides whether "play again" is on offer.
+    let partyCode: String?
+    let rematch: () -> Void
     let leave: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -31,6 +35,8 @@ struct MatchView: View {
                             WinnerPanel(
                                 name: match.shortName(winnerId),
                                 iWon: match.iWon,
+                                partyCode: partyCode,
+                                rematch: rematch,
                                 leave: leave
                             )
                         } else {
@@ -477,6 +483,9 @@ struct RevealPanel: View {
 struct WinnerPanel: View {
     let name: String
     let iWon: Bool
+    /// The private game this match came from, or nil for a public one.
+    let partyCode: String?
+    let rematch: () -> Void
     let leave: () -> Void
 
     var body: some View {
@@ -487,8 +496,30 @@ struct WinnerPanel: View {
                     .foregroundStyle(iWon ? Theme.brass : Theme.inkSoft)
                 Text(iWon ? "You win." : "\(name) wins.")
                     .font(.system(.title, design: .serif, weight: .bold))
-                Button("Back to the lobby", action: leave)
-                    .buttonStyle(TableButton(tint: Theme.brass))
+
+                // The first thing anyone wants after a game with friends is another one, so it
+                // takes the loud button and the lobby becomes the quiet one. Offered only when
+                // there is a party to go back to: a match found through the queue has no "same
+                // people" to reassemble, and a button that explains itself by failing is worse
+                // than no button.
+                //
+                // Swift note: `if let partyCode` shadows the optional property with a non-nil
+                // `String` inside the branch — the same shorthand as `if let x = x`, which is
+                // how Swift gets you from "might be nil" to "definitely a value" without a
+                // force-unwrap. CLAUDE.md bans those outside tests.
+                if let partyCode {
+                    Button("Play again", action: rematch)
+                        .buttonStyle(TableButton(tint: Theme.brass))
+                    Text("Back to room \(partyCode), with the same players.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.inkSoft)
+                        .multilineTextAlignment(.center)
+                    Button("Back to the lobby", action: leave)
+                        .buttonStyle(TableButton(tint: .black))
+                } else {
+                    Button("Back to the lobby", action: leave)
+                        .buttonStyle(TableButton(tint: Theme.brass))
+                }
             }
             .frame(maxWidth: .infinity)
         }

@@ -202,6 +202,130 @@ final class PrivateGameTests: XCTestCase {
         XCTAssertFalse(session.lastError?.readable.contains("_") ?? true, "shows a raw code")
     }
 
+    // MARK: - Playing again
+
+    /// Into a match the way friends get there: through the party screen.
+    private func intoAPartyMatch(
+        _ transport: StubTransport,
+        as playerId: String = "me"
+    ) async throws -> GameSession {
+        let session = try await connected(transport, as: playerId)
+        session.createParty()
+        try await transport.push(party(host: playerId, members: [playerId, "them"]))
+        try await waitUntil("the party screen") {
+            if case .party = session.stage { return true }
+            return false
+        }
+        try await transport.push(ServerMessage.matchFound(.init(matchId: "m1", seats: [])))
+        try await waitUntil("the match") { session.stage == .playing }
+        return session
+    }
+
+    func testAMatchStartedFromAPartyRemembersWhichOne() async throws {
+        let transport = StubTransport()
+        let session = try await intoAPartyMatch(transport)
+        XCTAssertEqual(session.partyCode, "WXYZ", "no room to go back to")
+    }
+
+    func testAQueueMatchHasNothingToGoBackTo() async throws {
+        let transport = StubTransport()
+        let session = try await connected(transport, as: "me")
+        session.findMatch()
+        try await transport.push(ServerMessage.matchFound(.init(matchId: "m1", seats: [])))
+        try await waitUntil("the match") { session.stage == .playing }
+        XCTAssertNil(session.partyCode, "a queue match has no same people to reassemble")
+    }
+
+    func testTheCodeSurvivesTheMatchBeingReannounced() async throws {
+        // A reconnect re-announces the match (R-18). It must not look like a new one and
+        // quietly lose the rematch button.
+        let transport = StubTransport()
+        let session = try await intoAPartyMatch(transport)
+
+        try await transport.push(ServerMessage.matchFound(.init(matchId: "m1", seats: [])))
+        // Waiting for `stage == .playing` would prove nothing: it already is, so the assertion
+        // would run before the message was handled — which is exactly how an earlier version of
+        // this test passed against the bug it was written for. The stub delivers in order and
+        // the session handles in order, so a second message is a sentinel for the first having
+        // been dealt with.
+        try await transport.push(ServerMessage.error(.init(code: .notInParty, detail: "sentinel")))
+        try await waitUntil("the re-announcement to have been handled") {
+            session.lastError == .notInParty
+        }
+        XCTAssertEqual(session.partyCode, "WXYZ")
+    }
+
+    func testAFreshMatchAfterAPrivateOneClearsTheCode() async throws {
+        // Party match, back to the lobby, then a public one. The button must not come back
+        // offering a room that match has nothing to do with.
+        let transport = StubTransport()
+        let session = try await intoAPartyMatch(transport)
+        session.leaveMatch()
+
+        session.findMatch()
+        try await transport.push(ServerMessage.matchFound(.init(matchId: "m2", seats: [])))
+        try await waitUntil("the second match") { session.match?.matchId == "m2" }
+        XCTAssertNil(session.partyCode)
+    }
+
+    func testAskingToPlayAgainSendsForTheParty() async throws {
+        let transport = StubTransport()
+        let session = try await intoAPartyMatch(transport)
+
+        session.rematch()
+        try await waitUntil("the rematch to be written") {
+            let frames = await transport.writtenFrames()
+            return frames.contains { $0.contains("\"type\":\"rematch\"") }
+        }
+
+        // And the answer puts them back in the room, ready for the host to start again.
+        try await transport.push(party(host: "me", members: ["me", "them"]))
+        try await waitUntil("the party screen") {
+            if case .party = session.stage { return true }
+            return false
+        }
+        guard case .party(let state) = session.stage else { return XCTFail("not in a party") }
+        XCTAssertEqual(state.code, "WXYZ")
+    }
+
+    func testThereIsNothingToAskForAfterAPublicMatch() async throws {
+        let transport = StubTransport()
+        let session = try await connected(transport, as: "me")
+        session.findMatch()
+        try await transport.push(ServerMessage.matchFound(.init(matchId: "m1", seats: [])))
+        try await waitUntil("the match") { session.stage == .playing }
+
+        let before = await transport.writtenFrames().count
+        session.rematch()
+        // Nothing to wait for; give the send a chance to happen if it were going to.
+        try await Task.sleep(for: .milliseconds(50))
+        let after = await transport.writtenFrames().count
+        XCTAssertEqual(after, before, "it asked for a party it never had")
+    }
+
+    func testAPartyUpdateNobodyAskedForDoesNotTakeTheMatchOffTheScreen() async throws {
+        // The gateway holds these back from a player who is in a room, so this covers the gap
+        // between a match ending and a button being pressed: somebody else leaving the party in
+        // those few seconds must not replace the final score with a lobby screen.
+        let transport = StubTransport()
+        let session = try await intoAPartyMatch(transport)
+
+        try await transport.push(party(host: "me", members: ["me"]))
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(session.stage, .playing, "a party update pulled the player off the table")
+    }
+
+    func testGoingBackToTheLobbyGivesUpThePartyToo() async throws {
+        // The server treats leaving the table as leaving the party, so this object has to agree
+        // — otherwise the button is still offered for a room they are no longer in.
+        let transport = StubTransport()
+        let session = try await intoAPartyMatch(transport)
+
+        session.leaveMatch()
+        XCTAssertEqual(session.stage, .lobby)
+        XCTAssertNil(session.partyCode)
+    }
+
     func testEveryPrivateGameRefusalHasSomethingReadableToSay() {
         for code in [
             ErrorCode.unknownParty, .partyFull, .alreadyInParty,

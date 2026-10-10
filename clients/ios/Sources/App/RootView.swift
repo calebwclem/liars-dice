@@ -85,7 +85,12 @@ struct RootView: View {
 
         case .playing:
             if let match = session.match {
-                MatchView(match: match, leave: { session.leaveMatch() })
+                MatchView(
+                    match: match,
+                    partyCode: session.partyCode,
+                    rematch: { session.rematch() },
+                    leave: { session.leaveMatch() }
+                )
             } else {
                 TableMessage(
                     symbol: "dice.fill",

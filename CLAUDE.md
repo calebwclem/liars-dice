@@ -166,12 +166,12 @@ table 4 × ⚅` — and reads clearly on a real screen. Do not re-add it without
 
 **Tier 3 — rough edges**
 
-- ~~**Rematch.**~~ Done on the web and the server. A party now outlives the match it starts, and
+- ~~**Rematch.**~~ Done on the web, the server and iOS. A party outlives the match it starts, and
   `rematch` (protocol 4) asks to be put back in front of it; the host starts the next match from
-  the same room code. See `docs/DECISIONS.md`. **iOS has none of this yet** — it is unaffected
-  (it never sends `rematch`, and the gateway holds party updates back from anyone in a room), but
-  an iOS player who sits on the end screen is still in the party and will be pulled into a
-  rematch someone else starts. Giving iOS the button is the follow-up.
+  the same room code. See `docs/DECISIONS.md`. Both clients work the button out from having been
+  on the party screen when `matchFound` arrived, and both decline to leave a live match on an
+  unasked-for `partyState` — the server withholds those from anyone in a room, and the clients
+  guard the seconds after a match ends that the server's filter does not cover.
 - ~~**Reconnect, tested in anger.**~~ Mostly done. Nine tests now drop a live match on a fake
   clock and drive the recovery, which found two real bugs: the backoff reset on `open` rather
   than on a working session, so a server that accepted and dropped (a `node --watch` restart, a
