@@ -21,6 +21,7 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
 } from '@liars-dice/protocol';
+import type { MatchArchive } from './archive.ts';
 import type { Auth } from './auth.ts';
 import type { Clock } from './clock.ts';
 import type { Config } from './env.ts';
@@ -48,6 +49,8 @@ export interface GatewayOptions {
   readonly log: Logger;
   /** Pass an existing server (tests share one with an http listener); otherwise one is made. */
   readonly server?: WebSocketServer;
+  /** Where finished matches are written down. Omitted means they are not. */
+  readonly archive?: MatchArchive;
 }
 
 export class Gateway {
@@ -431,6 +434,7 @@ export class Gateway {
       clock: this.options.clock,
       rng: this.options.rng,
       log: this.options.log,
+      ...(this.options.archive === undefined ? {} : { archive: this.options.archive }),
       send: (playerId, message) => {
         this.send(playerId, message);
       },

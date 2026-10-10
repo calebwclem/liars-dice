@@ -6,6 +6,7 @@
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
+import { fileArchive, noArchive } from './archive.ts';
 import { createAuth } from './auth.ts';
 import { systemClock } from './clock.ts';
 import { loadConfig, loadEnvFile } from './env.ts';
@@ -39,8 +40,15 @@ const http = createServer((request, response) => {
   });
 });
 
+// PLAN.md's deterministic replay: a finished match is written down when a directory is
+// configured for it, and not otherwise. See archive.ts for what goes in the file and why that
+// cannot include a die nobody was shown.
+const archive =
+  config.MATCH_ARCHIVE_DIR === undefined ? noArchive() : fileArchive(config.MATCH_ARCHIVE_DIR, log);
+
 const gateway = new Gateway({
   config,
+  archive,
   clock,
   auth: createAuth({ secret: config.AUTH_SECRET, ttlMs: config.TOKEN_TTL_MS, clock }),
   rng: cryptoRng(), // R-20

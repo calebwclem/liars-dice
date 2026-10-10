@@ -10,6 +10,7 @@ import {
   type MatchSnapshot,
   type ServerMessage,
 } from '@liars-dice/protocol';
+import type { MatchTranscript } from '../src/archive.ts';
 import { createAuth } from '../src/auth.ts';
 import { systemClock } from '../src/clock.ts';
 import { loadConfig } from '../src/env.ts';
@@ -220,6 +221,8 @@ describe('Four clients, one server', () => {
   let gateway: Gateway;
   let url = '';
   const clients: TestClient[] = [];
+  /** Every match this gateway wrote down. See archive.ts. */
+  let archived: MatchTranscript[] = [];
 
   beforeEach(async () => {
     const config = loadConfig({
@@ -239,8 +242,16 @@ describe('Four clients, one server', () => {
       RATE_LIMIT_PER_SECOND: '1000',
     });
     http = createServer();
+    archived = [];
     gateway = new Gateway({
       config,
+      // In memory rather than on disk: `archive.test.ts` covers the writing, and what matters
+      // here is what a real match actually puts in the transcript.
+      archive: {
+        record: (transcript) => {
+          archived.push(transcript);
+        },
+      },
       clock: systemClock(),
       auth: createAuth({
         secret: config.AUTH_SECRET,
@@ -509,6 +520,74 @@ describe('Four clients, one server', () => {
       expect(you?.id).toBe(client.playerId);
     }
     expect(inspected).toBeGreaterThan(50);
+  });
+
+  test('a finished match is written down, actions and all', async () => {
+    // PLAN.md's deterministic replay: with a pure engine, a recorded action list can be put
+    // back through `reduce`. The room kept one in memory and threw it away on the way out.
+    const four = await seatFour();
+    await playToCompletion(four);
+    await waitUntil('the match to be archived', () => archived.length === 1);
+
+    const [transcript] = archived;
+    if (transcript === undefined) throw new Error('nothing was archived');
+    expect(transcript.status).toBe('ended');
+    expect(transcript.winnerId).not.toBeNull();
+    expect(transcript.seats.map((seat) => seat.playerId).sort()).toEqual(
+      four.map((client) => client.playerId).sort(),
+    );
+    expect(transcript.endedAt).toBeGreaterThanOrEqual(transcript.startedAt);
+
+    // Every bid and challenge the engine accepted, in order, plus the round advances.
+    const kinds = new Set(transcript.actions.map((action) => action.type));
+    expect(kinds).toContain('bid');
+    expect(kinds).toContain('dudo');
+    expect(kinds).toContain('advanceRound');
+    expect(transcript.actions.length).toBeGreaterThan(5);
+
+    // And the transitions reach the end, so the archive does not stop one event short of the win.
+    const events = transcript.transitions.flatMap((entry) => entry.events);
+    expect(events.map((event) => event.type)).toContain('matchEnded');
+    expect(events.map((event) => event.type)).toContain('diceRevealed');
+    // `history` is capped for `resume`; the archive must not be, or a long match loses its start.
+    expect(events.map((event) => event.type)).toContain('matchStarted');
+  });
+
+  test('the archive contains no die that was not revealed', async () => {
+    // CLAUDE.md: never log or serialize a hidden die outside a reveal. The transcript is built
+    // from the events the room broadcast, which is what makes this true by construction — but
+    // "by construction" is a claim, and this is the test of it. R-10 reveals every cup, so a
+    // completed match's dice are all public by the end; the rolls being in the file is exactly
+    // what makes replay possible without a seed (see DECISIONS.md, 2026-09-14).
+    const four = await seatFour();
+    await playToCompletion(four);
+    await waitUntil('the match to be archived', () => archived.length === 1);
+
+    const [transcript] = archived;
+    if (transcript === undefined) throw new Error('nothing was archived');
+    const wire: unknown = JSON.parse(JSON.stringify(transcript));
+    const leaked = dicePaths(wire).filter(
+      (path) => !/^transitions\[\d+]\.events\[\d+]\.reveal\.hands\./.test(path),
+    );
+    expect(leaked, 'a hidden die reached the archive').toEqual([]);
+    // Not vacuous: the reveals really are in there.
+    expect(dicePaths(wire).length).toBeGreaterThan(4);
+  });
+
+  test('R-19: an abandoned match is written down too', async () => {
+    // The kind you most want to look at afterwards. It is also the one case where the archive
+    // is not fully replayable: a round interrupted mid-play never reached a reveal, so its
+    // dice are not in the file — which is the honest cost of R-20's CSPRNG.
+    const four = await seatFour();
+    for (const client of four) client.drop();
+    await waitUntil('the abandonment to be archived', () => archived.length === 1, 10_000);
+
+    const [transcript] = archived;
+    if (transcript === undefined) throw new Error('nothing was archived');
+    expect(transcript.status).toBe('abandoned');
+    expect(transcript.winnerId).toBeNull();
+    const events = transcript.transitions.flatMap((entry) => entry.events);
+    expect(events.map((event) => event.type)).toContain('matchAbandoned');
   });
 
   test('the server refuses a protocol version it cannot speak', async () => {

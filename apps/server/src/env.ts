@@ -63,6 +63,13 @@ const EnvSchema = z.object({
   MATCH_SIZE: z.coerce.number().int().min(2).max(6).default(4),
   QUEUE_BACKFILL_MS: ms(10_000),
 
+  /**
+   * Where finished matches are written for replay (PLAN.md's deterministic-replay note).
+   * Unset means they are not written at all, which is the default: a debugging archive is
+   * something you turn on, and an unconfigured server should not quietly start filling a disk.
+   */
+  MATCH_ARCHIVE_DIR: z.string().min(1).optional(),
+
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 });
 

@@ -31,6 +31,7 @@ import type {
   ServerEvent,
   ServerMessage,
 } from '@liars-dice/protocol';
+import type { MatchArchive } from './archive.ts';
 import type { Clock, TimerHandle } from './clock.ts';
 import type { Logger } from './logger.ts';
 import { botAction, timeoutAction } from './autoplay.ts';
@@ -68,6 +69,8 @@ export interface RoomOptions {
   /** Deliver to a player's current socket, or drop it if they have none. */
   readonly send: (playerId: PlayerId, message: ServerMessage) => void;
   readonly onFinished?: (room: Room) => void;
+  /** Where a finished match is written down, for replay. Omitted means it is not. */
+  readonly archive?: MatchArchive;
 }
 
 export type RoomStatus = 'active' | 'ended' | 'abandoned';
@@ -95,8 +98,19 @@ export class Room {
   private status: RoomStatus = 'active';
   private seq = 0;
   private readonly history: { seq: number; events: readonly ProtocolEvent[] }[] = [];
-  /** PLAN.md: persist the action list per match. Kept in memory until Phase 6. */
+  /**
+   * PLAN.md: persist the action list per match, for deterministic replay. Handed to
+   * `options.archive` when the match finishes; see archive.ts for what is safe to write.
+   */
   private readonly actionLog: Action[] = [];
+  /**
+   * Every transition broadcast, for the archive. Separate from `history` on purpose: that one
+   * is capped at `HISTORY_LIMIT` because it exists to answer a `resume`, and dropping the
+   * early rounds of a match is fine for catching a client up and useless for replaying it.
+   * Unbounded only within one match, which is a few hundred entries and then written out.
+   */
+  private readonly transitions: { seq: number; events: readonly ProtocolEvent[] }[] = [];
+  private readonly startedAt: number;
   private turnTimer: TimerHandle | null = null;
   private revealTimer: TimerHandle | null = null;
   private botTimer: TimerHandle | null = null;
@@ -113,6 +127,7 @@ export class Room {
     this.matchId = options.matchId;
     this.log = options.log.child({ matchId: options.matchId });
     this.state = state;
+    this.startedAt = options.clock.now();
     this.seats = new Map(
       options.seats.map((spec, index) => [
         spec.playerId,
@@ -296,6 +311,33 @@ export class Room {
     if (seat.botReason === null) this.takeOverSeat(seat, 'disconnected');
   }
 
+  /**
+   * The match is over: write it down, then tell the gateway.
+   *
+   * Called after the final transition has been published, so the transcript contains it — a
+   * match whose archive stopped one event short of the win would be a strange thing to debug
+   * with. Archiving before `onFinished` also means it happens before the gateway forgets the
+   * room exists.
+   */
+  private finish(): void {
+    const { phase } = this.state;
+    this.options.archive?.record({
+      matchId: this.matchId,
+      status: this.status === 'abandoned' ? 'abandoned' : 'ended',
+      startedAt: this.startedAt,
+      endedAt: this.options.clock.now(),
+      winnerId: phase.kind === 'ended' ? phase.winnerId : null,
+      seats: [...this.seats.values()].map((seat) => ({
+        playerId: seat.playerId,
+        kind: seat.kind,
+      })),
+      config: this.state.config,
+      actions: [...this.actionLog],
+      transitions: this.transitions.map((entry) => ({ seq: entry.seq, events: entry.events })),
+    });
+    this.options.onFinished?.(this);
+  }
+
   /** Stop every timer. Called when the match finishes and when the server shuts down. */
   dispose(): void {
     const { clock } = this.options;
@@ -337,7 +379,7 @@ export class Room {
     // deadline and the seat statuses, so it has to be built after the timers are arranged.
     const ended = this.settle(result.value);
     this.publish('update', [...prefix, ...result.value.events]);
-    if (ended) this.options.onFinished?.(this);
+    if (ended) this.finish();
     return null;
   }
 
@@ -489,7 +531,7 @@ export class Room {
     this.log.warn('match.abandoned', { reason: 'allHumansDisconnected' });
     this.dispose();
     this.publish('update', [{ type: 'matchAbandoned', reason: 'allHumansDisconnected' }]);
-    this.options.onFinished?.(this);
+    this.finish();
     return true;
   }
 
@@ -504,6 +546,7 @@ export class Room {
     this.seq += 1;
     this.history.push({ seq: this.seq, events });
     if (this.history.length > HISTORY_LIMIT) this.history.shift();
+    this.transitions.push({ seq: this.seq, events });
 
     for (const seat of this.seats.values()) {
       this.options.send(seat.playerId, {

@@ -739,3 +739,46 @@ with them — reasonable, but iOS has no button of its own yet. That is the foll
 **Not covered by tests:** a real browser. The flow is covered end to end over real sockets in
 `integration.test.ts` — four friends play a match to a winner and start another — and from the
 button's side in the mounted-DOM project, but nobody has clicked it.
+
+---
+
+## 2026-10-09 — A finished match is archived from its published events, not its state
+
+**Decision:** When a match ends or is abandoned, `Room` hands a `MatchTranscript` to an injected
+`MatchArchive`: the match metadata, the action list, and every transition the room *broadcast*.
+`fileArchive` writes one JSON file per match under `MATCH_ARCHIVE_DIR`, which is unset by default.
+The room keeps a second, uncapped list of transitions for this, separate from the `history` that
+answers a `resume` — that one is capped at `HISTORY_LIMIT` because dropping the early rounds is
+fine for catching a client up and useless for replaying a match.
+
+**Alternatives:** serialising `GameState` at the end, or snapshotting it per round (rejected: the
+state holds every player's current hand, so this is the one design that makes "never serialize a
+hidden die" a thing you have to get right by hand, forever, in a file nobody reads); appending to
+one JSONL file for all matches (rejected: a match is the unit you want to open, and per-match
+files need no index and no locking); writing through a database (that is Phase 6, and this needed
+to exist before it).
+
+**Why events.** CLAUDE.md forbids serialising a hidden die outside a reveal. Building the file
+out of published events makes that true *by construction*: the engine's stated invariant is that
+no event carries a die face except `diceRevealed`, which fires only after R-10. A round that
+never reached a reveal contributes no dice to the file. There is a test asserting it on a real
+match — it walks the written transcript for anything shaped like a hand and allows only paths
+under a reveal — and it was verified by adding `hands` to the transcript and watching it fail.
+
+**What it cannot do, and why that is already written down.** R-20 rolls with a CSPRNG, so the
+action list alone does not reproduce a match; the 2026-09-14 entry above took that trade
+deliberately and noted that replay therefore means recording the rolls, "which the reveal events
+already contain". This is that. Under R-10 every completed round reaches a reveal, so a finished
+match is fully replayable; an abandoned one is missing the dice of the round it died in. Closing
+that gap is R-21's per-match seed in v1.1, not a change here.
+
+**What is deliberately not built:** the replay *runner*. The file is enough to reconstruct a
+match by reading it, which is what PLAN.md's cheap-wins list actually asks for ("reconstruct any
+reported bug"). Feeding it back through `reduce` needs an rng that returns the recorded hands in
+the engine's own roll order — worth doing, worth doing on purpose, and not worth guessing at
+inside this change.
+
+**Not covered by tests:** nothing in the path, as it turns out. `archive.test.ts` covers the
+writing, `integration.test.ts` covers what a real match puts in a transcript, and the
+`index.ts` wiring was checked by running a server with `MATCH_ARCHIVE_DIR` set and playing a
+match through it — 36 actions, 39 transitions, 6 reveals, 20KB.
